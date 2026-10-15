@@ -22,7 +22,7 @@
   --wine:#e0798f; --wine-soft:#3a2228; --sun:#ef7a6c; --sat:#86a6f0; --ok:#e0798f; --warn:#e0798f; --warn-soft:#3a2228; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5}
-.wrap{max-width:1180px;margin:0 auto;padding-block:20px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1360px;margin:0 auto;padding-block:20px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:16px}
 h1{font-family:var(--display);font-weight:800;font-size:1.6rem;margin:0;letter-spacing:-.01em;text-wrap:balance}
 h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.78rem;color:var(--muted);letter-spacing:.04em}
@@ -212,30 +212,47 @@ th,td{border:1px solid var(--line)}
   .slip .net .v{font-size:1.25rem}
 }
 
-/* 요일별 편집 작업대 */
-.week{grid-template-columns:minmax(0,1fr)}
-.day{display:grid;grid-template-columns:5em minmax(0,1fr) minmax(180px,24%);align-items:start;gap:12px}
-.day .dayhead{grid-column:1;grid-row:auto;flex-direction:column;gap:0}
-.day .dayhead .dh{margin-left:0}
-.day>*:not(.dayhead){grid-column:auto}
-.day-shifts{display:flex;flex-wrap:wrap;align-items:start;gap:8px;min-width:0}
-.day-shifts>.shift{flex:1 1 350px;min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr) auto;padding:8px}
-.day-shifts>.btn{flex-basis:100%}
-.shift select,.shift input{grid-column:1;grid-row:auto;width:100%;padding:6px 8px}
-.shift .x{grid-column:2;grid-row:1/3}
-.shift .clock{grid-column:1/-1;overflow-wrap:anywhere}
-.shift .chk input{width:100%;flex-basis:100%;min-width:0}
-.day-notes{min-width:0;overflow-wrap:anywhere}
-.day-notes textarea{display:block;min-height:5em;overflow:hidden;white-space:pre-wrap}
+/* 주간 편집표: 넓으면 요일 7열, 중간 폭은 요일당 한 줄, 폰은 요일 카드 */
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.week .day{display:flex;flex-direction:column;gap:8px;padding:10px 8px;min-width:0}
+.week .day .dayhead{flex-direction:row;align-items:baseline;gap:6px;grid-row:auto}
+.week .day .dayhead .dh{margin-left:auto}
+.day-shifts{display:flex;flex-direction:column;gap:6px;min-width:0}
+.week .shift{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;padding:6px;border:1px solid var(--line)}
+.week .shift select{grid-column:1/-1;grid-row:1;width:100%;padding:6px 4px;font-size:.92rem;font-weight:700}
+.week .shift input[data-f="t"]{grid-column:1;grid-row:2;width:100%;padding:5px 6px;font-size:.92rem}
+.week .shift .x{grid-column:2;grid-row:2;align-self:center;padding:2px 4px}
+.week .shift .clock{grid-column:1/-1;font-size:.74rem;line-height:1.4;overflow-wrap:anywhere}
+.week .shift .chk{gap:3px}
+.week .shift .chk .lbl{flex-basis:100%}
+.week .shift .chk button{flex:1 1 auto;padding:4px 2px;font-size:.72rem}
+.week .shift .chk input{flex-basis:100%;width:100%;min-width:0}
+.day-notes{display:flex;flex-direction:column;gap:4px;min-width:0;overflow-wrap:anywhere;border-top:1px dashed var(--line);padding-top:6px}
+.day-notes .avail{font-size:.78rem;line-height:1.55}
+.day-notes textarea{display:block;width:100%;min-height:3em;overflow:hidden;white-space:pre-wrap;font-size:.82rem;line-height:1.45}
+@media(max-width:999px){
+  .week{grid-template-columns:minmax(0,1fr)}
+  .week .day{display:grid;grid-template-columns:4.5em minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+  .week .day .dayhead{flex-direction:column;gap:0;border-bottom:0}
+  .week .day>.dayhead{grid-column:1;grid-row:1}
+  .week .day>.day-shifts{grid-column:2;grid-row:1}
+  .week .day>.day-notes{grid-column:3;grid-row:1}
+  .week .day .dayhead .dh{margin-left:0}
+  .day-notes{border-top:0;padding-top:0}
+}
+@media(max-width:640px){
+  .week .day{display:flex;flex-direction:column}
+  .week .day .dayhead{flex-direction:row;gap:8px;border-bottom:1px solid var(--line)}
+  .week .day .dayhead .dh{margin-left:auto}
+  .day-notes{border-top:1px dashed var(--line);padding-top:6px}
+  .week .day>*{width:100%;grid-column:auto;grid-row:auto}
+}
 :root{--record-done:#24703d;--record-changed:#975200;--record-absent:#b32727}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--record-done:#83d69b;--record-changed:#ffc16a;--record-absent:#ff9292}}
 :root[data-theme="dark"]{--record-done:#83d69b;--record-changed:#ffc16a;--record-absent:#ff9292}
 .record-status{font:600 .8rem var(--body);padding:4px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
 .record-status.done{color:var(--record-done)}.record-status.changed{color:var(--record-changed)}.record-status.absent{color:var(--record-absent)}
 .record-status.future{background:var(--sunk)}
-@media(min-width:601px){.day-shifts>.shift{grid-template-columns:minmax(145px,1fr) minmax(130px,1fr) auto}.shift select{grid-column:1;grid-row:1}.shift input[data-f="t"]{grid-column:2;grid-row:1}.shift .x{grid-column:3;grid-row:1}}
-@media(max-width:899px){.day{grid-template-columns:4em minmax(0,1fr)}.day-notes{grid-column:2!important}}
-@media(max-width:600px){.day{display:flex;flex-direction:column;padding:10px}.day .dayhead{flex-direction:row;gap:8px;width:100%}.day .dayhead .dh{margin-left:auto}.day-shifts,.day-notes{width:100%}.day-shifts>.shift{flex-basis:100%}.shift select{min-height:36px}.day-notes textarea{min-height:4em}}
 
 [hidden]{display:none!important}
 #login{position:fixed;inset:0;background:var(--bg);z-index:100;display:grid;place-items:center}#login form{border:2px solid var(--fg);padding:32px;max-width:360px;width:90%}
@@ -442,7 +459,7 @@ function renderSchedule(){
     day.shifts.forEach((sh,j)=>{
       const c=shiftCalc(sh.t,set);
       const pool=active.concat(staffById(sh.who)&&staffById(sh.who).archived?[staffById(sh.who)]:[]);
-      const opt=p=>{const a=p.role==="owner"?"":availOf(wk,p.id,i);return `<option value="${p.id}" ${p.id===sh.who?"selected":""}>${esc(p.name)}${p.role==="owner"?" · 사장":(a?" · "+AV[a]:"")}</option>`;};
+      const opt=p=>{const a=p.role==="owner"?"":availOf(wk,p.id,i);return `<option value="${p.id}" ${p.id===sh.who?"selected":""}>${esc(p.name)}</option>`;};
       const grp=(label,list)=>list.length?`<optgroup label="${label}">${list.map(opt).join("")}</optgroup>`:"";
       const by=code=>pool.filter(p=>p.role!=="owner"&&availOf(wk,p.id,i)===code);
       const opts=pool.filter(p=>p.role==="owner").map(opt).join("")+grp("가능",by("ok"))+grp("조건부",by("open").concat(by("close")))+grp("미응답",by(""))+grp("불가",by("no"));
