@@ -563,7 +563,7 @@ function renderSchedule(){
     names.forEach((n,k)=>{
       const ex=st.staff.find(p=>p.name===n);
       if(ex){ if(ex.archived){ex.archived=false;added.push(n);} return; }
-      st.staff.push({id:"s"+Date.now().toString(36)+k, name:n, wage:st.minWage, role:"staff", deduct:"none"}); added.push(n);
+      st.staff.push({id:"s"+Date.now().toString(36)+k, name:n, wage:st.minWage, role:"staff", deduct:"3.3"}); added.push(n);
     });
     ta.value="";
     if(!added.length){toast("이미 명단에 있어요");return;}
@@ -776,8 +776,8 @@ function slipHTML(row){
   </div>
   <div class="net"><b>실지급액</b><span class="v">${won(row.net)}원</span></div>
   <div class="log"><h3 style="font-size:.8rem;letter-spacing:.1em;color:var(--muted);border-bottom:2px solid var(--fg);padding-bottom:4px">근무 내역</h3>
-    <div class="scroll"><table><thead><tr><th>날짜</th><th>출근</th><th>퇴근</th><th>휴게</th><th>근로시간</th></tr></thead><tbody>
-    ${row.log.map(l=>`<tr><td>${l.date.getMonth()+1}/${l.date.getDate()} (${DOW[l.date.getDay()]})</td><td class="num">${clock(l.c.s)}</td><td class="num">${clock(l.c.e)}</td><td class="num">${l.c.brk?hrs(l.c.brk)+"h":"–"}</td><td class="num">${hrs(l.c.hours)}</td></tr>`).join("")}
+    <div class="scroll"><table><thead><tr><th>날짜</th><th>출근</th><th>퇴근</th><th>근로시간</th></tr></thead><tbody>
+    ${row.log.map(l=>`<tr><td>${l.date.getMonth()+1}/${l.date.getDate()} (${DOW[l.date.getDay()]})</td><td class="num">${clock(l.c.s)}</td><td class="num">${clock(l.c.e)}</td><td class="num">${hrs(l.c.hours)}</td></tr>`).join("")}
     </tbody></table></div></div>
   <div class="foot"><span>${esc(set.shop)}</span><span>${dedLabel}</span></div>`;
 }
@@ -855,7 +855,7 @@ function renderSettings(){
   });
   main.querySelector("#addStaff").onclick=()=>{
     const n=main.querySelector("#newName").value.trim(); if(!n){toast("이름을 적어 주세요");return;}
-    set.staff.push({id:"s"+Date.now().toString(36), name:n, wage:set.minWage, role:"staff", deduct:"none"});
+    set.staff.push({id:"s"+Date.now().toString(36), name:n, wage:set.minWage, role:"staff", deduct:"3.3"});
     saveSettings(); render(); toast(n+" 님을 추가했어요");
   };
   main.querySelectorAll("[data-arch]").forEach(b=>b.onclick=()=>{
