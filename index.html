@@ -55,6 +55,12 @@ textarea{width:100%;resize:vertical;min-height:2.2em;font-size:.85rem}
 .dayhead .dow{font-weight:700}
 .dayhead .dh{margin-left:auto;font-size:.75rem;color:var(--muted)}
 .sun .dow,.sun .dayhead b{color:var(--sun)} .sat .dow,.sat .dayhead b{color:var(--sat)}
+.hol .dow,.hol .dayhead b{color:var(--sun)}
+.holname{font-size:.72rem;font-weight:700;color:var(--sun);letter-spacing:0}
+.vote th.hol,.notice th.hol{color:var(--paper-sun,var(--sun))}
+.notice .holname{display:block;font-size:.72em;color:var(--paper-sun)}
+.vote .holname{display:block;font-size:.65rem}
+.holrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0;font-size:.88rem}
 .shift{display:grid;grid-template-columns:1fr auto;gap:4px;background:var(--sunk);border-radius:0;padding:6px}
 .shift select{grid-column:1/2;padding:4px 6px;font-weight:600}
 .shift input{grid-column:1/2;padding:4px 6px;font-family:var(--mono)}
@@ -282,6 +288,18 @@ th,td{border:1px solid var(--line)}
 <script>
 (() => {
 const DOW = ["일","월","화","수","목","금","토"];
+// 법정 공휴일(관공서의 공휴일에 관한 규정 기준, 대체공휴일 포함). 임시공휴일 등은 설정에서 추가.
+const HOLIDAYS = {
+  "2026-01-01":"신정","2026-02-16":"설 연휴","2026-02-17":"설날","2026-02-18":"설 연휴","2026-03-01":"삼일절","2026-03-02":"대체공휴일",
+  "2026-05-05":"어린이날","2026-05-24":"부처님오신날","2026-05-25":"대체공휴일","2026-06-03":"지방선거일","2026-06-06":"현충일",
+  "2026-08-15":"광복절","2026-08-17":"대체공휴일","2026-09-24":"추석 연휴","2026-09-25":"추석","2026-09-26":"추석 연휴",
+  "2026-10-03":"개천절","2026-10-05":"대체공휴일","2026-10-09":"한글날","2026-12-25":"성탄절",
+  "2027-01-01":"신정","2027-02-06":"설 연휴","2027-02-07":"설날","2027-02-08":"설 연휴","2027-02-09":"대체공휴일","2027-03-01":"삼일절",
+  "2027-05-05":"어린이날","2027-05-13":"부처님오신날","2027-06-06":"현충일","2027-08-15":"광복절","2027-08-16":"대체공휴일",
+  "2027-09-14":"추석 연휴","2027-09-15":"추석","2027-09-16":"추석 연휴","2027-10-03":"개천절","2027-10-04":"대체공휴일",
+  "2027-10-09":"한글날","2027-10-11":"대체공휴일","2027-12-25":"성탄절","2027-12-27":"대체공휴일"
+};
+function holidayOf(d){ const k=typeof d==="string"?d:ymd(d), extra=(state.settings&&state.settings.holidays)||{}; return extra[k]||HOLIDAYS[k]||""; }
 const DEFAULT_SETTINGS = {
   shop:"하라고지페", minWage:10320, payDay:10, night:false, holiday:false, breakDeduct:false,
   rates:{pension:4.75, health:3.595, care:13.14, employ:0.9},
@@ -411,7 +429,7 @@ function renderScheduleNotice(){
     <button class="btn primary" id="editW" aria-pressed="true">편집 화면</button>
   </div><article class="notice" aria-label="공지용 근무표">
     <h2>하라고지페 근무표</h2><p class="notice-period">${period}</p>
-    <table aria-label="주간 근무자 및 근무시간"><thead><tr>${days.map((_,i)=>{const d=addDays(start,i);return `<th scope="col" class="${i===0?"sun":i===6?"sat":""}"><span class="date">${d.getMonth()+1}.${d.getDate()}</span>${DOW[i]}요일</th>`;}).join("")}</tr></thead>
+    <table aria-label="주간 근무자 및 근무시간"><thead><tr>${days.map((_,i)=>{const d=addDays(start,i);const hol=holidayOf(d);return `<th scope="col" class="${i===0?"sun":i===6?"sat":""} ${hol?"hol sun":""}"><span class="date">${d.getMonth()+1}.${d.getDate()}</span>${DOW[i]}요일${hol?`<span class="holname">${esc(hol)}</span>`:""}</th>`;}).join("")}</tr></thead>
     <tbody>${rows}<tr class="notes">${days.map(day=>`<td><span class="notes-label">비고</span>${esc(day.note)||"–"}</td>`).join("")}</tr></tbody></table>
     <footer class="notice-foot"><span>작성일 ${ymd(new Date()).replaceAll("-",".")} · 하라고지페</span><span class="notice-seal" aria-label="도장 자리"></span></footer>
   </article>`;
@@ -469,7 +487,7 @@ function renderSchedule(){
   </details>
   ${active.some(p=>p.role!=="owner")?`<div class="card" style="margin-bottom:14px">
     <div class="bar" style="margin:0 0 6px"><h3>근무 가능 투표</h3><span class="muted" style="font-size:.78rem">카톡 투표 결과를 칸마다 골라 옮겨 적으세요. 가능 · 오픈만 · 마감만 · 불가</span></div>
-    <div class="vote-wrap"><table class="vote"><thead><tr><th>이름</th>${[0,1,2,3,4,5,6].map(i=>{const d=addDays(start,i);return `<th class="${i===0?"sun":""} ${i===6?"sat":""}">${d.getDate()} ${DOW[i]}</th>`;}).join("")}</tr></thead>
+    <div class="vote-wrap"><table class="vote"><thead><tr><th>이름</th>${[0,1,2,3,4,5,6].map(i=>{const d=addDays(start,i);const hol=holidayOf(d);return `<th class="${i===0?"sun":""} ${i===6?"sat":""} ${hol?"hol":""}">${d.getDate()} ${DOW[i]}${hol?`<span class="holname">${esc(hol)}</span>`:""}</th>`;}).join("")}</tr></thead>
     <tbody>${active.filter(p=>p.role!=="owner").map(p=>`<tr><td>${esc(p.name)}</td>${[0,1,2,3,4,5,6].map(i=>{const a=availOf(wk,p.id,i);return `<td><select id="v-${p.id}-${i}" data-vote="${p.id}:${i}" data-v="${a}" aria-label="${esc(p.name)} ${DOW[i]}요일 근무 가능">${AV_CYCLE.map(k=>`<option value="${k}" ${k===a?"selected":""}>${k?AV[k]:"–"}</option>`).join("")}</select></td>`;}).join("")}</tr>`).join("")}</tbody></table></div>
   </div>`:""}
   <p class="muted" style="margin:-6px 0 12px;font-size:.82rem">시간은 시트처럼 <span class="num">6.5-1</span>(18:30~01:00), <span class="num">8-2</span>, <span class="num">19:30-23:30</span> 모두 돼요.</p>
@@ -478,8 +496,9 @@ function renderSchedule(){
     const d=addDays(start,i), day=wk?wk.days[i]:{shifts:[],note:""};
     let dh=0; day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(c) dh+=c.hours;});
     const isPast=ymd(d)<=today;
-    html+=`<section class="day ${i===0?"sun":""} ${i===6?"sat":""} ${ymd(d)===today?"today":""}">
-      <div class="dayhead"><b>${d.getDate()}</b><span class="dow">${DOW[i]}</span><span class="dh num">${dh?hrs(dh)+"h":""}</span></div><div class="day-shifts">`;
+    const hol=holidayOf(d);
+    html+=`<section class="day ${i===0?"sun":""} ${i===6?"sat":""} ${hol?"hol":""} ${ymd(d)===today?"today":""}">
+      <div class="dayhead"><b>${d.getDate()}</b><span class="dow">${DOW[i]}</span>${hol?`<span class="holname">${esc(hol)}</span>`:""}<span class="dh num">${dh?hrs(dh)+"h":""}</span></div><div class="day-shifts">`;
     day.shifts.forEach((sh,j)=>{
       const c=shiftCalc(sh.t,set);
       const pool=active.concat(staffById(sh.who)&&staffById(sh.who).archived?[staffById(sh.who)]:[]);
@@ -835,6 +854,11 @@ function renderSettings(){
     ${archived.length?`<p class="muted" style="font-size:.82rem;margin:12px 0 0">그만둔 직원 (지난 기록은 유지): ${archived.map(p=>`${esc(p.name)} <button class="btn ghost small" data-unarch="${p.id}">복귀</button>`).join(" ")}</p>`:""}
   </div>
   <div class="two">
+    <div class="card"><h2 style="margin-bottom:8px">공휴일 추가</h2>
+      <p class="muted" style="font-size:.8rem;margin:0 0 8px">법정 공휴일(2026–2027)은 이미 들어 있어요. 임시공휴일이나 가게 휴무일을 여기에 더하면 근무표에 빨간 글씨로 표시돼요.</p>
+      ${Object.entries(set.holidays||{}).sort().map(([k,v])=>`<div class="holrow"><span class="num">${k}</span><b>${esc(v)}</b><button class="btn ghost small" data-delhol="${k}">삭제</button></div>`).join("")}
+      <div class="holrow"><input id="holDate" type="date"><input id="holName" type="text" placeholder="임시공휴일" style="flex:1;min-width:8em"><button class="btn primary small" id="holAdd">추가</button></div>
+    </div>
     <div class="card"><h2 style="margin-bottom:8px">계산 규칙</h2>
       <label class="check"><input type="checkbox" id="night" ${set.night?"checked":""}><span>야간근로수당 (22–06시 50% 가산)<small>상시 근로자 5명 이상일 때 의무예요. 사장은 인원에 들어가지 않아요.</small></span></label>
       <label class="check"><input type="checkbox" id="holiday" ${set.holiday?"checked":""}><span>주휴수당<small>주 15시간 이상 일한 주에 (주 시간 ÷ 40 × 8)시간분을 더해요. 토요일이 속한 달에 넣어요.</small></span></label>
@@ -879,6 +903,8 @@ function renderSettings(){
   ["night","holiday","breakDeduct"].forEach(k=>main.querySelector("#"+k).onchange=e=>{set[k]=e.target.checked;saveSettings();});
   main.querySelector("#shop").onchange=e=>{set.shop=e.target.value.trim()||"하라고지페";saveSettings();};
   main.querySelector("#minWage").onchange=e=>{set.minWage=num(e.target.value);saveSettings();render();};
+  main.querySelector("#holAdd").onclick=()=>{const k=main.querySelector("#holDate").value, v=main.querySelector("#holName").value.trim()||"휴일"; if(!/^\d{4}-\d{2}-\d{2}$/.test(k)){toast("날짜를 골라 주세요");return;} set.holidays={...(set.holidays||{}),[k]:v.slice(0,20)}; saveSettings(); render(); toast(k+" "+v+" 추가했어요");};
+  main.querySelectorAll("[data-delhol]").forEach(b=>b.onclick=()=>{const h={...(set.holidays||{})}; delete h[b.dataset.delhol]; set.holidays=h; saveSettings(); render();});
   main.querySelector("#payDay").onchange=e=>{set.payDay=Math.min(28,Math.max(1,num(e.target.value)||10));saveSettings();};
   ["pension","health","care","employ"].forEach(k=>main.querySelector("#r-"+k).onchange=e=>{set.rates={...set.rates,[k]:num(e.target.value)};saveSettings();});
 }
