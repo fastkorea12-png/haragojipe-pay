@@ -586,12 +586,14 @@ function monthRecords(){
 function recordStatus(r){return CHK[r.status]||(r.status==='unchecked'?'미확인':'예정');}
 function recordClock(c){return c?clock(c.s)+'–'+clock(c.e):'–';}
 function renderRecords(){
+  const sync=cache['app/sync']?.data;
   const records=monthRecords(), [y,m]=state.month.split('-').map(Number);
   const people=S().staff.filter(p=>!state.recordStaff||p.id===state.recordStaff);
   const summary=people.map(p=>{const rr=records.filter(r=>r.sh.who===p.id), count=k=>rr.filter(r=>r.status===k).length;
     return `<tr><td>${esc(p.name)}</td><td>${rr.length}</td><td>${hrs(rr.reduce((n,r)=>n+(r.planned?.hours||0),0))}</td><td>${hrs(rr.reduce((n,r)=>n+(r.actual?.hours||0),0))}</td>${['done','changed','absent','unchecked'].map(k=>`<td>${count(k)}</td>`).join('')}</tr>`;
   }).join('');
   main.innerHTML=`<div class="bar"><button class="btn" id="recordPrev">이전</button><div class="period">${y}년 ${m}월</div><button class="btn" id="recordNext">다음</button><label>사람 <select id="recordPerson"><option value="">전체</option>${S().staff.map(p=>`<option value="${esc(p.id)}" ${state.recordStaff===p.id?'selected':''}>${esc(p.name)}${p.role==='owner'?' · 사장':''}</option>`).join('')}</select></label><button class="btn" id="recordCopy">카톡용 글로 복사</button></div>
+  <p class="muted">마지막 시트 동기화: ${sync?esc(new Date(sync.at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}))+' · 반영 '+Number(sync.applied||0)+'건 · 명단에 없는 이름: '+esc((sync.unknown||[]).join(', ')||'없음'):'아직 동기화 기록이 없어요'}</p>
   <p class="muted">실제 입력된 주만 표시합니다. 미확인은 오늘 이전 근무이며, 체크 전까지 예정 시간으로 합산합니다.</p>
   <div class="section"><div class="card"><h3>사람별 요약 (시간)</h3><div class="scroll"><table id="recordSummary"><thead><tr>${['근무자','예정 근무 수','예정 시간','실제 시간','근무함','시간 다름','결근','미확인'].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>${summary}</tbody></table></div></div>
   <div class="card"><h3>상세 기록</h3><div class="scroll"><table><thead><tr>${['날짜(요일)','근무자','예정 시각','실제 시각','상태','실제 시간'].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>${records.map((r,n)=>`<tr><td>${r.date} (${DOW[r.i]})</td><td>${esc(staffById(r.sh.who)?.name||'삭제된 직원')}</td><td>${recordClock(r.planned)}</td><td>${recordClock(r.actual)}</td><td><select class="record-status ${r.status}" data-record="${n}" aria-label="${r.date} 근무 상태"><option value="" ${!r.sh.chk?'selected':''}>${r.date<ymd(new Date())?'미확인':'예정'}</option>${Object.entries(CHK).map(([k,v])=>`<option value="${k}" ${r.sh.chk===k?'selected':''}>${v}</option>`).join('')}</select>${r.sh.chk==='changed'?`<input type="text" data-record-at="${n}" value="${esc(r.sh.at||'')}" aria-label="실제 시간" placeholder="6.5-10.5">`:''}</td><td>${hrs(r.actual?.hours||0)}h</td></tr>`).join('')||'<tr><td colspan="6">입력된 근무 기록이 없습니다.</td></tr>'}</tbody></table></div></div></div>`;
@@ -630,7 +632,7 @@ function deduction(p, gross){
   }
   return {items:[],total:0};
 }
-function computeMonth(mk, project){
+function computeMonth(mk, project, confirmedOnly=false){
   const set=S(), days=monthDays(mk), res={}, todayK=ymd(new Date()); let estDays=0, filledDays=0, unchecked=0, absent=0;
   const get=id=>res[id]||(res[id]={hours:0,night:0,days:new Set(),log:[],weeks:{}});
   days.forEach(d=>{
@@ -638,6 +640,7 @@ function computeMonth(mk, project){
     shifts.forEach(sh=>{ if(!staffById(sh.who)) return;
       if(!est && sh.chk==="absent"){ absent++; return; }
       if(!est && !sh.chk && ymd(d)<=todayK && staffById(sh.who).role!=="owner") unchecked++;
+      if(confirmedOnly && (est || !["done","changed"].includes(sh.chk))) return;
       const c=est?shiftCalc(sh.t,set):effCalc(sh,set); if(!c) return; const r=get(sh.who);
       r.hours+=c.hours; r.night+=c.night; r.days.add(ymd(d)); r.log.push({date:d,t:sh.t,c,est,chk:est?"":(sh.chk||"")});});
   });
@@ -646,7 +649,7 @@ function computeMonth(mk, project){
   if(set.holiday){
     days.filter(d=>d.getDay()===6).forEach(sat=>{
       const st=addDays(sat,-6), per={};
-      for(let i=0;i<7;i++){const d=addDays(st,i); const ds=dayShifts(d,project); ds.shifts.forEach(sh=>{const c=ds.est?shiftCalc(sh.t,set):effCalc(sh,set); if(c) per[sh.who]=(per[sh.who]||0)+c.hours;});}
+      for(let i=0;i<7;i++){const d=addDays(st,i); const ds=dayShifts(d,project); ds.shifts.forEach(sh=>{if(confirmedOnly && (ds.est || !["done","changed"].includes(sh.chk)))return;const c=ds.est?shiftCalc(sh.t,set):effCalc(sh,set); if(c) per[sh.who]=(per[sh.who]||0)+c.hours;});}
       holidayWeeks.push({start:st, per});
     });
   }
@@ -666,6 +669,8 @@ function renderPayroll(){
   const set=S(); if(!set.staff.length){ main.innerHTML=noStaff(); return; }
   const [y,m]=state.month.split("-").map(Number);
   const R=computeMonth(state.month, state.project);
+  const confirmed=computeMonth(state.month,false,true).rows;
+  const confirmedRow=r=>confirmed.find(c=>c.p.id===r.p.id);
   const staffRows=R.rows.filter(r=>!r.owner), ownerRows=R.rows.filter(r=>r.owner);
   const staffCost=staffRows.reduce((a,r)=>a+r.gross,0), ownerCost=ownerRows.reduce((a,r)=>a+r.gross,0);
   const sales=Number(set.sales[state.month]||0);
@@ -685,14 +690,14 @@ function renderPayroll(){
     <div class="stat"><label class="k" for="sales">이 달 매출 (원)</label><input id="sales" type="text" inputmode="numeric" class="num" style="width:100%;margin-top:4px" value="${sales?won(sales):""}" placeholder="13,000,000"></div>
   </div>`;
   const tr=r=>`<tr><td>${esc(r.p.name)} ${r.owner?'<span class="chip owner">사장</span>':""} ${r.est?'<span class="chip est">예상 포함</span>':""}</td>
-    <td class="num">${r.days}</td><td class="num">${hrs(r.hours)}</td><td class="num">${won(r.p.wage)}</td><td class="num">${won(r.base)}</td>
+    <td class="num">${r.days}</td><td class="num">${hrs(r.hours)}</td><td class="num">${hrs(confirmedRow(r)?.hours||0)}</td><td class="num">${won(confirmedRow(r)?.net||0)}</td><td class="num">${won(r.net-(confirmedRow(r)?.net||0))}</td><td class="num">${won(r.p.wage)}</td><td class="num">${won(r.base)}</td>
     <td class="num">${r.nightPay?won(r.nightPay):"–"}</td><td class="num">${r.hol?won(r.hol):"–"}</td><td class="num"><b>${won(r.gross)}</b></td>
     <td class="num">${r.ded.total?"−"+won(r.ded.total):"–"}</td><td class="num"><b>${won(r.net)}</b></td>
     <td>${r.owner?"":`<button class="btn small" data-slip="${r.p.id}">명세서</button>`}</td></tr>`;
   html+=`<div class="card"><div class="scroll"><table>
-    <thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>시급</th><th>기본급</th><th>야간가산</th><th>주휴</th><th>지급총액</th><th>공제</th><th>실지급</th><th></th></tr></thead>
+    <thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>확인된 시간</th><th>명세서 실지급</th><th>실지급 차이</th><th>시급</th><th>기본급</th><th>야간가산</th><th>주휴</th><th>지급총액</th><th>공제</th><th>실지급</th><th></th></tr></thead>
     <tbody>${staffRows.map(tr).join("")}${ownerRows.map(tr).join("")}</tbody>
-    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(R.rows.reduce((a,r)=>a+r.hours,0))}</td><td></td><td class="num">${won(R.rows.reduce((a,r)=>a+r.base,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.nightPay,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.hol,0))}</td><td class="num">${won(staffCost+ownerCost)}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.ded.total,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0))}</td><td></td></tr></tfoot>
+    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(R.rows.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${hrs(confirmed.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${won(confirmed.reduce((a,r)=>a+r.net,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0)-confirmed.reduce((a,r)=>a+r.net,0))}</td><td></td><td class="num">${won(R.rows.reduce((a,r)=>a+r.base,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.nightPay,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.hol,0))}</td><td class="num">${won(staffCost+ownerCost)}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.ded.total,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0))}</td><td></td></tr></tfoot>
   </table></div>
   <p class="muted" style="font-size:.8rem;margin:10px 0 0">야간가산 ${set.night?"켜짐":"꺼짐"} · 주휴수당 ${set.holiday?"켜짐":"꺼짐"} · 휴게시간 차감 ${set.breakDeduct?"켜짐":"꺼짐"} · 바꾸려면 <button class="btn small" data-go="settings">직원·설정</button></p></div>`;
   main.innerHTML=html;
@@ -709,7 +714,7 @@ function renderPayroll(){
 function payDate(mk){const [y,m]=mk.split("-").map(Number);const d=new Date(y,m,S().payDay||10);return d.getFullYear()+"년 "+(d.getMonth()+1)+"월 "+d.getDate()+"일";}
 function slipData(){
   const set=S(); const staff=set.staff.filter(p=>p.role!=="owner");
-  const R=computeMonth(state.month,false);
+  const R=computeMonth(state.month,false,true);
   if(!state.slipStaff || !staff.find(p=>p.id===state.slipStaff)){ const first=R.rows.find(r=>!r.owner); state.slipStaff=first?first.p.id:(staff[0]&&staff[0].id); }
   const row=R.rows.find(r=>r.p.id===state.slipStaff);
   return {staff,row};
@@ -717,7 +722,7 @@ function slipData(){
 function slipText(row){
   const set=S(), [y,m]=state.month.split("-").map(Number);
   const L=[`[${set.shop}] ${y}년 ${m}월 급여명세서`,`성명: ${row.p.name}`,`근무: ${row.days}일 / ${hrs(row.hours)}시간`, `지급일: ${payDate(state.month)}`, "",
-    "■ 지급", `기본급 ${won(row.base)}원 (${hrs(row.hours)}h × ${won(row.p.wage)}원)`];
+    "근무 확인된 내역만 반영 (근무함: 예정 시간 / 시간 다름: 실제 시간)", "■ 지급", `기본급 ${won(row.base)}원 (${hrs(row.hours)}h × ${won(row.p.wage)}원)`];
   if(row.nightPay) L.push(`야간근로수당 ${won(row.nightPay)}원 (${hrs(row.night)}h × ${won(row.p.wage)}원 × 0.5)`);
   if(row.hol) L.push(`주휴수당 ${won(row.hol)}원 (${hrs(row.holH)}h × ${won(row.p.wage)}원)`);
   L.push(`지급총액 ${won(row.gross)}원`);
@@ -737,8 +742,10 @@ function renderSlip(){
     <button class="btn" id="copy" ${row?"":"disabled"}>카톡용 글로 복사</button>
     <button class="btn primary" id="dl" ${row?"":"disabled"}>파일로 저장</button>
   </div>
-  <p class="muted" style="margin:-6px 0 12px;font-size:.82rem">명세서는 입력된 스케줄과 실제 근무 체크로 계산해요. 결근은 빠지고, 시간 다름은 실제 시간으로 들어가요 (예상치는 넣지 않아요).</p>`;
-  if(!row){ main.innerHTML=html+`<div class="empty">${y}년 ${m}월에 이 직원의 근무 기록이 없어요.</div>`; bindSlip(); return; }
+  <p class="muted" style="margin:-6px 0 12px;font-size:.82rem">명세서는 근무 확인된 근무만 반영해요. 근무함은 예정 시간, 시간 다름은 실제 시간으로 계산하며 미확인·결근은 제외해요.</p>`;
+  const unconfirmed=monthDays(state.month).reduce((n,d)=>n+(state.weeks[weekStartKey(d)]?.days[d.getDay()]?.shifts||[]).filter(sh=>sh.who===state.slipStaff&&!sh.chk).length,0);
+  if(unconfirmed)html+=`<div class="banner">확인 안 된 근무 ${unconfirmed}건은 명세서에 들어가지 않았어요</div>`;
+  if(!row){ main.innerHTML=html+`<div class="empty">${y}년 ${m}월에 이 직원의 확인된 근무 기록이 없어요.</div>`; bindSlip(); return; }
   html+=`<article class="slip" id="slipDoc">${slipHTML(row)}</article>`;
   main.innerHTML=html; bindSlip(row);
 }
