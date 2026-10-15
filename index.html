@@ -421,6 +421,30 @@ function renderScheduleNotice(){
   main.querySelector("#editW").onclick=()=>{state.scheduleNotice=false;render();};
 }
 
+// 근무 한 칸 아래 줄: 계산 시각 · 투표 · 실제 확인 상태
+function shiftClockHTML(sh,i,wk,set){
+  const c=shiftCalc(sh.t,set);
+  const sa=staffById(sh.who)&&staffById(sh.who).role!=="owner"?availOf(wk,sh.who,i):"";
+  const voteNote=sa==="no"?' · <span class="conflict">투표: 불가</span>':(sa==="open"||sa==="close"?' · <span class="cond">투표: '+AV[sa]+'</span>':"");
+  const st=sh.chk||"", ac=st==="changed"?parseRange(sh.at):null;
+  const stNote=st==="done"?' · <span class="st-done">근무함</span>':st==="absent"?' · <span class="st-absent">결근</span>':st==="changed"?(ac?' · <span class="st-changed">실제 '+clock(ac.s)+"–"+clock(ac.e)+" "+hrs(ac.e-ac.s)+"h</span>":' · <span class="st-changed">실제 시간을 적어 주세요</span>'):"";
+  return (c? clock(c.s)+"–"+clock(c.e)+" · "+hrs(c.hours)+"h"+(c.brk?" (휴게 "+hrs(c.brk)+"h 뺌)":"") : (sh.t?"시간 형식을 확인해 주세요":"시간을 입력하세요"))+voteNote+stNote;
+}
+function dayHoursText(day,set){ let dh=0; day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(c) dh+=c.hours;}); return dh?hrs(dh)+"h":""; }
+function weekTotalsHTML(wk,set){
+  const tot={};
+  if(wk) wk.days.forEach(day=>day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(!c) return; tot[sh.who]=tot[sh.who]||{h:0,n:0,d:0}; tot[sh.who].h+=c.hours; tot[sh.who].n+=c.night; tot[sh.who].d++;}));
+  let rows="", sumH=0, sumPay=0;
+  set.staff.filter(p=>tot[p.id]).forEach(p=>{
+    const t=tot[p.id], pay=t.h*p.wage; sumH+=t.h; sumPay+=pay;
+    const warn = p.role!=="owner" && t.h>=15 ? '<span class="chip warn">주 15시간 이상 · 주휴 대상</span>' : (p.role!=="owner" && t.h>=13 ? '<span class="chip warn">15시간까지 '+hrs(15-t.h)+'h 남음</span>':"");
+    rows+=`<tr><td>${esc(p.name)} ${p.role==="owner"?'<span class="chip owner">사장</span>':""} ${warn}</td><td class="num">${t.d}일</td><td class="num">${hrs(t.h)}</td><td class="num">${won(pay)}</td></tr>`;
+  });
+  return `<div class="card" style="margin-top:14px"><h3 style="margin-bottom:6px">이번 주 합계</h3>
+    ${rows?`<div class="scroll"><table><thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>주급(세전)</th></tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(sumH)}</td><td class="num">${won(sumPay)}</td></tr></tfoot></table></div>`:'<p class="muted">이 주에는 아직 근무가 없어요. <b>+ 근무 추가</b>나 <b>지난주 그대로 가져오기</b>로 채워 보세요.</p>'}
+  </div>`;
+}
 function renderSchedule(){
   if(state.scheduleNotice){renderScheduleNotice();return;}
   const set=S(); if(!set.staff.length){ main.innerHTML=noStaff(); return; }
@@ -463,16 +487,13 @@ function renderSchedule(){
       const grp=(label,list)=>list.length?`<optgroup label="${label}">${list.map(opt).join("")}</optgroup>`:"";
       const by=code=>pool.filter(p=>p.role!=="owner"&&availOf(wk,p.id,i)===code);
       const opts=pool.filter(p=>p.role==="owner").map(opt).join("")+grp("가능",by("ok"))+grp("조건부",by("open").concat(by("close")))+grp("미응답",by(""))+grp("불가",by("no"));
-      const sa=staffById(sh.who)&&staffById(sh.who).role!=="owner"?availOf(wk,sh.who,i):"";
-      const voteNote=sa==="no"?' · <span class="conflict">투표: 불가</span>':(sa==="open"||sa==="close"?' · <span class="cond">투표: '+AV[sa]+'</span>':"");
-      const st=sh.chk||"", ac=st==="changed"?parseRange(sh.at):null;
-      const stNote=st==="done"?' · <span class="st-done">근무함</span>':st==="absent"?' · <span class="st-absent">결근</span>':st==="changed"?(ac?' · <span class="st-changed">실제 '+clock(ac.s)+"–"+clock(ac.e)+" "+hrs(ac.e-ac.s)+"h</span>":' · <span class="st-changed">실제 시간을 적어 주세요</span>'):"";
+      const st=sh.chk||"";
       const chkRow=isPast?`<div class="chk"><span class="lbl">실제</span>${Object.keys(CHK).map(k=>`<button type="button" data-chk="${k}" data-d="${i}" data-j="${j}" aria-pressed="${st===k}">${CHK[k]}</button>`).join("")}${st==="changed"?`<input id="w-${i}-${j}-at" type="text" inputmode="decimal" data-d="${i}" data-j="${j}" data-f="at" value="${esc(sh.at||"")}" placeholder="실제 시간 6.5-12" aria-label="실제 근무 시간">`:""}</div>`:"";
       html+=`<div class="shift ${st==="absent"?"absent":""}">
         <select id="w-${i}-${j}-who" data-d="${i}" data-j="${j}" data-f="who" aria-label="근무자">${opts}</select>
         <input id="w-${i}-${j}-t" type="text" inputmode="decimal" data-d="${i}" data-j="${j}" data-f="t" value="${esc(sh.t)}" placeholder="6.5-1" aria-label="시간">
         <button class="btn ghost small x" data-del="${i}-${j}" aria-label="근무 삭제">삭제</button>
-        <div class="clock ${c?"":"bad"}">${c? clock(c.s)+"–"+clock(c.e)+" · "+hrs(c.hours)+"h"+(c.brk?" (휴게 "+hrs(c.brk)+"h 뺌)":"") : (sh.t?"시간 형식을 확인해 주세요":"시간을 입력하세요")}${voteNote}${stNote}</div>
+        <div class="clock ${c?"":"bad"}">${shiftClockHTML(sh,i,wk,set)}</div>
         ${chkRow}
       </div>`;
     });
@@ -490,19 +511,7 @@ function renderSchedule(){
     </div></section>`;
   }
   html+=`</div>`;
-  // 주간 합계
-  const tot={};
-  if(wk) wk.days.forEach(day=>day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(!c) return; tot[sh.who]=tot[sh.who]||{h:0,n:0,d:0}; tot[sh.who].h+=c.hours; tot[sh.who].n+=c.night; tot[sh.who].d++;}));
-  let rows="", sumH=0, sumPay=0;
-  set.staff.filter(p=>tot[p.id]).forEach(p=>{
-    const t=tot[p.id], pay=t.h*p.wage; sumH+=t.h; sumPay+=pay;
-    const warn = p.role!=="owner" && t.h>=15 ? '<span class="chip warn">주 15시간 이상 · 주휴 대상</span>' : (p.role!=="owner" && t.h>=13 ? '<span class="chip warn">15시간까지 '+hrs(15-t.h)+'h 남음</span>':"");
-    rows+=`<tr><td>${esc(p.name)} ${p.role==="owner"?'<span class="chip owner">사장</span>':""} ${warn}</td><td class="num">${t.d}일</td><td class="num">${hrs(t.h)}</td><td class="num">${won(pay)}</td></tr>`;
-  });
-  html+=`<div class="card" style="margin-top:14px"><h3 style="margin-bottom:6px">이번 주 합계</h3>
-    ${rows?`<div class="scroll"><table><thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>주급(세전)</th></tr></thead><tbody>${rows}</tbody>
-    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(sumH)}</td><td class="num">${won(sumPay)}</td></tr></tfoot></table></div>`:'<p class="muted">이 주에는 아직 근무가 없어요. <b>+ 근무 추가</b>나 <b>지난주 그대로 가져오기</b>로 채워 보세요.</p>'}
-  </div>`;
+  html+=`<div id="weekTotals">${weekTotalsHTML(wk,set)}</div>`;
   main.innerHTML=html;
 
   const go=n=>{state.weekKey=ymd(addDays(parseYmd(state.weekKey),n));render();};
@@ -534,7 +543,12 @@ function renderSchedule(){
     const [i,j]=b.dataset.del.split("-").map(Number); state.weeks[state.weekKey].days[i].shifts.splice(j,1); saveWeek(state.weekKey); render();
   });
   main.querySelectorAll(".shift select, .shift input").forEach(el=>{
-    const upd=()=>{const w=ensureWeek(state.weekKey); w.days[+el.dataset.d].shifts[+el.dataset.j][el.dataset.f]=el.value.trim(); saveWeek(state.weekKey);};
+    const upd=()=>{const w=ensureWeek(state.weekKey), i=+el.dataset.d, sh=w.days[i].shifts[+el.dataset.j]; sh[el.dataset.f]=el.value.trim(); saveWeek(state.weekKey);
+      // 입력 중에도 계산 시각·그날 합계·주간 합계를 바로 갱신 (전체 다시 그리기는 칸을 벗어날 때)
+      if(el.tagName==="INPUT"){ const set=S(), ck=el.closest(".shift").querySelector(".clock"), c=shiftCalc(sh.t,set);
+        ck.className="clock "+(c?"":"bad"); ck.innerHTML=shiftClockHTML(sh,i,w,set);
+        const dh=el.closest(".day").querySelector(".dh"); if(dh) dh.textContent=dayHoursText(w.days[i],set);
+        const wt=main.querySelector("#weekTotals"); if(wt) wt.innerHTML=weekTotalsHTML(w,set); } };
     el.addEventListener(el.tagName==="SELECT"?"change":"input",upd);
     if(el.tagName==="SELECT") el.addEventListener("change",render);
     if(el.tagName==="INPUT") el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
