@@ -3,6 +3,12 @@
 store["app/settings"]={shop:"하라고지페",minWage:10320,payDay:10,night:false,holiday:false,breakDeduct:false,rates:{pension:4.75,health:3.595,care:13.14,employ:0.9},sales:{},staff:[{id:"owner",name:"사장",wage:12000,role:"owner",deduct:"none"},{id:"staffA",name:"직원A",wage:10320,role:"staff",deduct:"none"},{id:"staffB",name:"직원B",wage:10320,role:"staff",deduct:"none"},{id:"staffC",name:"직원C",wage:10320,role:"staff",deduct:"3.3"}]};
 store["weeks/2026-10-11"]={start:"2026-10-11",days:[{shifts:[{who:"owner",t:"6.5-1"}],note:""},{shifts:[{who:"staffA",t:"6.5-10.5"}],note:""},{shifts:[{who:"staffB",t:"8-2"}],note:""},{shifts:[{who:"staffC",t:"6.5-10.5"}],note:""},{shifts:[{who:"staffA",t:"6.5-10.5"}],note:""},{shifts:[{who:"staffB",t:"8-2"}],note:""},{shifts:[],note:""}]};store["weeks/2026-10-18"]={start:"2026-10-18",days:[{shifts:[{who:"owner",t:"6.5-1"}],note:"화장실 청소"},{shifts:[{who:"staffA",t:"6.5-10.5"},{who:"owner",t:"9-1"}],note:""},{shifts:[{who:"owner",t:"6.5-1"},{who:"staffC",t:"6.5-10.5"}],note:"직원C 실습"},{shifts:[{who:"staffA",t:"6.5-10.5"},{who:"owner",t:"9-1"}],note:""},{shifts:[{who:"owner",t:"6.5-1"},{who:"staffC",t:"6.5-10.5"}],note:""},{shifts:[{who:"owner",t:"6.5-12.5"},{who:"staffA",t:"8-2"}],note:""},{shifts:[{who:"owner",t:"6.5-12.5"},{who:"staffB",t:"8-2"}],note:""}]};
 
+// 네 가지 실제 상태 검수: 예정 16시간, 실제 11시간, 각 상태 1건.
+const sample=store["weeks/2026-10-11"];
+["done","changed","absent",""].forEach((chk,i)=>{sample.days[i]={shifts:[{who:"staffA",t:"6.5-10.5",chk,...(chk==="changed"?{at:"6.5-9.5"}:{})}],note:i===0?"화장실 청소와 재고조사 후 다음 근무자에게 인계합니다. ".repeat(4):""};});
+[4,5,6].forEach(i=>sample.days[i]={shifts:[],note:""});
+sample.avail={staffA:["ok","ok","ok","ok","","",""]};
+
 const versions=Object.fromEntries(Object.keys(store).map(p=>[p,1]));window.__store=store;window.__writes=[];
 const reply=(b,status=200)=>new Response(JSON.stringify(b),{status,headers:{'content-type':'application/json'}});
 const realFetch=window.fetch;window.fetch=async(url,options={})=>{

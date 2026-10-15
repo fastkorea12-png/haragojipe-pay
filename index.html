@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
 <title>하라고지페 근무·급여</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Nanum+Myeongjo:wght@700;800&display=swap">
 <style>
-/* 레이아웃: 상단 탭 + 한 화면 작업대. 넓으면 7열 주간표, 좁으면 요일 카드 세로 쌓기 */
+/* 레이아웃: 상단 탭 + 한 화면 작업대. 요일별 한 줄 주간표 */
 :root{
   --bg:#ffffff; --surface:#ffffff; --sunk:#f4f4f4; --line:#222222; --fg:#171717; --muted:#626262;
   --paper:#ffffff; --ink:#171717; --paper-muted:#555555; --paper-wine:#681d30; --paper-sun:#ad2525; --paper-sat:#24509a;
@@ -210,6 +211,32 @@ th,td{border:1px solid var(--line)}
   .slip th,.slip td{white-space:normal;overflow-wrap:anywhere;padding:6px 2px}
   .slip .net .v{font-size:1.25rem}
 }
+
+/* 요일별 편집 작업대 */
+.week{grid-template-columns:minmax(0,1fr)}
+.day{display:grid;grid-template-columns:5em minmax(0,1fr) minmax(180px,24%);align-items:start;gap:12px}
+.day .dayhead{grid-column:1;grid-row:auto;flex-direction:column;gap:0}
+.day .dayhead .dh{margin-left:0}
+.day>*:not(.dayhead){grid-column:auto}
+.day-shifts{display:flex;flex-wrap:wrap;align-items:start;gap:8px;min-width:0}
+.day-shifts>.shift{flex:1 1 350px;min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr) auto;padding:8px}
+.day-shifts>.btn{flex-basis:100%}
+.shift select,.shift input{grid-column:1;grid-row:auto;width:100%;padding:6px 8px}
+.shift .x{grid-column:2;grid-row:1/3}
+.shift .clock{grid-column:1/-1;overflow-wrap:anywhere}
+.shift .chk input{width:100%;flex-basis:100%;min-width:0}
+.day-notes{min-width:0;overflow-wrap:anywhere}
+.day-notes textarea{display:block;min-height:5em;overflow:hidden;white-space:pre-wrap}
+:root{--record-done:#24703d;--record-changed:#975200;--record-absent:#b32727}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--record-done:#83d69b;--record-changed:#ffc16a;--record-absent:#ff9292}}
+:root[data-theme="dark"]{--record-done:#83d69b;--record-changed:#ffc16a;--record-absent:#ff9292}
+.record-status{font:600 .8rem var(--body);padding:4px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.record-status.done{color:var(--record-done)}.record-status.changed{color:var(--record-changed)}.record-status.absent{color:var(--record-absent)}
+.record-status.future{background:var(--sunk)}
+@media(min-width:601px){.day-shifts>.shift{grid-template-columns:minmax(145px,1fr) minmax(130px,1fr) auto}.shift select{grid-column:1;grid-row:1}.shift input[data-f="t"]{grid-column:2;grid-row:1}.shift .x{grid-column:3;grid-row:1}}
+@media(max-width:899px){.day{grid-template-columns:4em minmax(0,1fr)}.day-notes{grid-column:2!important}}
+@media(max-width:600px){.day{display:flex;flex-direction:column;padding:10px}.day .dayhead{flex-direction:row;gap:8px;width:100%}.day .dayhead .dh{margin-left:auto}.day-shifts,.day-notes{width:100%}.day-shifts>.shift{flex-basis:100%}.shift select{min-height:36px}.day-notes textarea{min-height:4em}}
+
 [hidden]{display:none!important}
 #login{position:fixed;inset:0;background:var(--bg);z-index:100;display:grid;place-items:center}#login form{border:2px solid var(--fg);padding:32px;max-width:360px;width:90%}
 </style>
@@ -223,6 +250,7 @@ th,td{border:1px solid var(--line)}
       <button id="lock" type="button">잠그기</button><span class="saving" id="saving"></span>
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="schedule" aria-selected="true">스케줄</button>
+        <button role="tab" data-tab="records" aria-selected="false">근무 기록</button>
         <button role="tab" data-tab="payroll" aria-selected="false">급여 계산</button>
         <button role="tab" data-tab="slip" aria-selected="false">급여명세서</button>
         <button role="tab" data-tab="settings" aria-selected="false">직원·설정</button>
@@ -330,13 +358,15 @@ function availOf(wk,id,i){ return (wk&&wk.avail&&wk.avail[id]&&wk.avail[id][i])|
 /* ---------- 렌더 공통 ---------- */
 const main=document.getElementById("main");
 let renderQueued=false;
+let noteObservers=[];
 function render(){
   const ae=document.activeElement;
   if(ae && main.contains(ae) && /INPUT|TEXTAREA/.test(ae.tagName) && ae.type!=="checkbox"){ renderQueued=true; return; }
   renderQueued=false;
+  noteObservers.forEach(o=>o.disconnect());noteObservers=[];
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.tab===state.tab)));
   if(!state.loaded.settings || !state.loaded.weeks){ main.innerHTML='<div class="empty">불러오는 중…</div>'; return; }
-  ({schedule:renderSchedule, payroll:renderPayroll, slip:renderSlip, settings:renderSettings})[state.tab]();
+  ({schedule:renderSchedule, records:renderRecords, payroll:renderPayroll, slip:renderSlip, settings:renderSettings})[state.tab]();
 }
 main.addEventListener("focusout",()=>setTimeout(()=>{ if(renderQueued) render(); },0));
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;try{localStorage.setItem("hgp.tab",state.tab)}catch(e){};render();});
@@ -408,7 +438,7 @@ function renderSchedule(){
     let dh=0; day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(c) dh+=c.hours;});
     const isPast=ymd(d)<=today;
     html+=`<section class="day ${i===0?"sun":""} ${i===6?"sat":""} ${ymd(d)===today?"today":""}">
-      <div class="dayhead"><b>${d.getDate()}</b><span class="dow">${DOW[i]}</span><span class="dh num">${dh?hrs(dh)+"h":""}</span></div>`;
+      <div class="dayhead"><b>${d.getDate()}</b><span class="dow">${DOW[i]}</span><span class="dh num">${dh?hrs(dh)+"h":""}</span></div><div class="day-shifts">`;
     day.shifts.forEach((sh,j)=>{
       const c=shiftCalc(sh.t,set);
       const pool=active.concat(staffById(sh.who)&&staffById(sh.who).archived?[staffById(sh.who)]:[]);
@@ -436,11 +466,11 @@ function renderSchedule(){
     if(pick(["open","close"]).length) avParts.push(`<span class="cond">${pick(["open","close"]).map(p=>`<b>${AV[availOf(wk,p.id,i)]}</b> ${esc(p.name)}`).join(", ")}</span>`);
     if(pick(["no"]).length) avParts.push(`<span class="no"><b>불가</b> ${pick(["no"]).map(p=>esc(p.name)).join(", ")}</span>`);
     if(pick([""]).length && avParts.length) avParts.push(`<span><b>미응답</b> ${pick([""]).map(p=>esc(p.name)).join(", ")}</span>`);
-    html+=`<button class="btn small" data-add="${i}">근무 추가</button>
+    html+=`<button class="btn small" data-add="${i}">근무 추가</button></div><div class="day-notes">
       ${avParts.length?`<div class="avail">${avParts.join("<br>")}</div>`:""}
       <label class="notelabel" for="note-${i}">비고</label>
       <textarea id="note-${i}" data-note="${i}" rows="1" placeholder="화장실 청소, 재고조사 등">${esc(day.note)}</textarea>
-    </section>`;
+    </div></section>`;
   }
   html+=`</div>`;
   // 주간 합계
@@ -492,7 +522,7 @@ function renderSchedule(){
     if(el.tagName==="SELECT") el.addEventListener("change",render);
     if(el.tagName==="INPUT") el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
   });
-  main.querySelectorAll("[data-note]").forEach(el=>el.addEventListener("input",()=>{const w=ensureWeek(state.weekKey); w.days[+el.dataset.note].note=el.value; saveWeek(state.weekKey);}));
+  main.querySelectorAll("[data-note]").forEach(el=>{const fit=()=>{el.style.height="auto";el.style.height=(el.scrollHeight+2)+"px";};fit();let width=el.clientWidth;const observer=new ResizeObserver(()=>{if(el.clientWidth!==width){width=el.clientWidth;fit();}});observer.observe(el);noteObservers.push(observer);el.addEventListener("input",()=>{fit();const w=ensureWeek(state.weekKey); w.days[+el.dataset.note].note=el.value; saveWeek(state.weekKey);});});
   main.querySelectorAll("[data-chk]").forEach(b=>b.onclick=()=>{
     const w=ensureWeek(state.weekKey), sh=w.days[+b.dataset.d].shifts[+b.dataset.j];
     sh.chk = sh.chk===b.dataset.chk ? "" : b.dataset.chk;
@@ -521,6 +551,42 @@ function renderSchedule(){
     ta.value="";
     if(!added.length){toast("이미 명단에 있어요");return;}
     saveSettings(); state.rosterOpen=true; render(); toast(added.join(", ")+" 님을 추가했어요");
+  };
+}
+
+/* ---------- 근무 기록: 저장된 주만 사용 ---------- */
+function monthRecords(){
+  const today=ymd(new Date()), out=[];
+  monthDays(state.month).forEach(d=>{
+    const key=weekStartKey(d), day=state.weeks[key]?.days[d.getDay()];
+    (day?.shifts||[]).forEach((sh,j)=>{
+      if(state.recordStaff && sh.who!==state.recordStaff)return;
+      const date=ymd(d), planned=shiftCalc(sh.t,S()), actual=effCalc(sh,S());
+      out.push({key,i:d.getDay(),j,sh,date,d,planned,actual,status:sh.chk||(date<today?'unchecked':'future')});
+    });
+  });return out;
+}
+function recordStatus(r){return CHK[r.status]||(r.status==='unchecked'?'미확인':'예정');}
+function recordClock(c){return c?clock(c.s)+'–'+clock(c.e):'–';}
+function renderRecords(){
+  const records=monthRecords(), [y,m]=state.month.split('-').map(Number);
+  const people=S().staff.filter(p=>!state.recordStaff||p.id===state.recordStaff);
+  const summary=people.map(p=>{const rr=records.filter(r=>r.sh.who===p.id), count=k=>rr.filter(r=>r.status===k).length;
+    return `<tr><td>${esc(p.name)}</td><td>${rr.length}</td><td>${hrs(rr.reduce((n,r)=>n+(r.planned?.hours||0),0))}</td><td>${hrs(rr.reduce((n,r)=>n+(r.actual?.hours||0),0))}</td>${['done','changed','absent','unchecked'].map(k=>`<td>${count(k)}</td>`).join('')}</tr>`;
+  }).join('');
+  main.innerHTML=`<div class="bar"><button class="btn" id="recordPrev">이전</button><div class="period">${y}년 ${m}월</div><button class="btn" id="recordNext">다음</button><label>사람 <select id="recordPerson"><option value="">전체</option>${S().staff.map(p=>`<option value="${esc(p.id)}" ${state.recordStaff===p.id?'selected':''}>${esc(p.name)}${p.role==='owner'?' · 사장':''}</option>`).join('')}</select></label><button class="btn" id="recordCopy">카톡용 글로 복사</button></div>
+  <p class="muted">실제 입력된 주만 표시합니다. 미확인은 오늘 이전 근무이며, 체크 전까지 예정 시간으로 합산합니다.</p>
+  <div class="section"><div class="card"><h3>사람별 요약 (시간)</h3><div class="scroll"><table id="recordSummary"><thead><tr>${['근무자','예정 근무 수','예정 시간','실제 시간','근무함','시간 다름','결근','미확인'].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>${summary}</tbody></table></div></div>
+  <div class="card"><h3>상세 기록</h3><div class="scroll"><table><thead><tr>${['날짜(요일)','근무자','예정 시각','실제 시각','상태','실제 시간'].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>${records.map((r,n)=>`<tr><td>${r.date} (${DOW[r.i]})</td><td>${esc(staffById(r.sh.who)?.name||'삭제된 직원')}</td><td>${recordClock(r.planned)}</td><td>${recordClock(r.actual)}</td><td><select class="record-status ${r.status}" data-record="${n}" aria-label="${r.date} 근무 상태"><option value="" ${!r.sh.chk?'selected':''}>${r.date<ymd(new Date())?'미확인':'예정'}</option>${Object.entries(CHK).map(([k,v])=>`<option value="${k}" ${r.sh.chk===k?'selected':''}>${v}</option>`).join('')}</select>${r.sh.chk==='changed'?`<input type="text" data-record-at="${n}" value="${esc(r.sh.at||'')}" aria-label="실제 시간" placeholder="6.5-10.5">`:''}</td><td>${hrs(r.actual?.hours||0)}h</td></tr>`).join('')||'<tr><td colspan="6">입력된 근무 기록이 없습니다.</td></tr>'}</tbody></table></div></div></div>`;
+  const move=n=>{state.month=monthKey(new Date(y,m-1+n,1));render();};
+  main.querySelector('#recordPrev').onclick=()=>move(-1);main.querySelector('#recordNext').onclick=()=>move(1);
+  main.querySelector('#recordPerson').onchange=e=>{state.recordStaff=e.target.value;render();};
+  main.querySelectorAll('[data-record]').forEach(el=>el.onchange=()=>{const r=records[+el.dataset.record];r.sh.chk=el.value;if(el.value==='changed'&&!r.sh.at)r.sh.at=r.sh.t;saveWeek(r.key);render();});
+  main.querySelectorAll('[data-record-at]').forEach(el=>el.onchange=()=>{const r=records[+el.dataset.recordAt];r.sh.at=el.value.trim();saveWeek(r.key);render();});
+  main.querySelector('#recordCopy').onclick=async()=>{
+    const lines=[`${y}년 ${m}월 근무 기록`];
+    people.forEach(p=>{const rr=records.filter(r=>r.sh.who===p.id);lines.push('',p.name,...rr.map(r=>`${r.date} (${DOW[r.i]}) 예정 ${recordClock(r.planned)} / 실제 ${recordClock(r.actual)} · ${hrs(r.actual?.hours||0)}시간 · ${recordStatus(r)}`),`합계: 예정 ${rr.length}건 / ${hrs(rr.reduce((n,r)=>n+(r.planned?.hours||0),0))}시간, 실제 ${hrs(rr.reduce((n,r)=>n+(r.actual?.hours||0),0))}시간`);});
+    try{await navigator.clipboard.writeText(lines.join('\n'));toast('근무 기록을 복사했어요');}catch{toast('복사 권한을 확인해 주세요');}
   };
 }
 
