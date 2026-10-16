@@ -185,6 +185,10 @@ th,td{border:1px solid var(--line)}
 .notice .times td{border-top:0;padding-top:0;font-family:var(--mono);font-size:.78em;letter-spacing:-.06em;white-space:nowrap}
 .notice .notes td{height:60px;vertical-align:top;font-size:.8em;white-space:pre-wrap}
 .notice .notes-label{display:block;font-size:.75em;font-weight:500;color:var(--paper-muted);margin-bottom:4px}
+.notice-memo{margin-top:14px;border:1px solid var(--ink);padding:10px 12px;font-size:.88rem;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+.notice-memo b{display:block;font-size:.8rem;letter-spacing:.08em;margin-bottom:4px}
+.weekmemo{margin-bottom:14px}
+.weekmemo textarea{min-height:4.5em;font-size:.9rem;line-height:1.55;overflow:hidden}
 .notice-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:18px;font-size:.75rem}
 .notice-seal{display:inline-block;width:38px;height:38px;border:1px solid var(--paper-wine);flex:none}
 .slip{padding:28px 24px}
@@ -431,6 +435,7 @@ function renderScheduleNotice(){
     <h2>하라고지페 근무표</h2><p class="notice-period">${period}</p>
     <table aria-label="주간 근무자 및 근무시간"><thead><tr>${days.map((_,i)=>{const d=addDays(start,i);const hol=holidayOf(d);return `<th scope="col" class="${i===0?"sun":i===6?"sat":""} ${hol?"hol sun":""}"><span class="date">${d.getMonth()+1}.${d.getDate()}</span>${DOW[i]}요일${hol?`<span class="holname">${esc(hol)}</span>`:""}</th>`;}).join("")}</tr></thead>
     <tbody>${rows}<tr class="notes">${days.map(day=>`<td><span class="notes-label">비고</span>${esc(day.note)||"–"}</td>`).join("")}</tr></tbody></table>
+    ${(state.weeks[state.weekKey]?.memo||"").trim()?`<div class="notice-memo"><b>공지 사항</b>${esc(state.weeks[state.weekKey].memo.trim())}</div>`:""}
     <footer class="notice-foot"><span>작성일 ${ymd(new Date()).replaceAll("-",".")} · 하라고지페</span><span class="notice-seal" aria-label="도장 자리"></span></footer>
   </article>`;
   main.querySelector("#prevW").onclick=()=>{state.weekKey=ymd(addDays(start,-7));render();};
@@ -490,6 +495,8 @@ function renderSchedule(){
     <div class="vote-wrap"><table class="vote"><thead><tr><th>이름</th>${[0,1,2,3,4,5,6].map(i=>{const d=addDays(start,i);const hol=holidayOf(d);return `<th class="${i===0?"sun":""} ${i===6?"sat":""} ${hol?"hol":""}">${d.getDate()} ${DOW[i]}${hol?`<span class="holname">${esc(hol)}</span>`:""}</th>`;}).join("")}</tr></thead>
     <tbody>${active.filter(p=>p.role!=="owner").map(p=>`<tr><td>${esc(p.name)}</td>${[0,1,2,3,4,5,6].map(i=>{const a=availOf(wk,p.id,i);return `<td><select id="v-${p.id}-${i}" data-vote="${p.id}:${i}" data-v="${a}" aria-label="${esc(p.name)} ${DOW[i]}요일 근무 가능">${AV_CYCLE.map(k=>`<option value="${k}" ${k===a?"selected":""}>${k?AV[k]:"–"}</option>`).join("")}</select></td>`;}).join("")}</tr>`).join("")}</tbody></table></div>
   </div>`:""}
+  <div class="card weekmemo"><label for="weekMemo"><h3 style="margin-bottom:6px">이번 주 공지 사항</h3></label>
+    <textarea id="weekMemo" placeholder="예: 금요일 단체 예약 12명, 토요일 와인 입고 — 공지용 근무표 아래에 같이 나가요">${esc(wk?.memo||"")}</textarea></div>
   <p class="muted" style="margin:-6px 0 12px;font-size:.82rem">시간은 시트처럼 <span class="num">6.5-1</span>(18:30~01:00), <span class="num">8-2</span>, <span class="num">19:30-23:30</span> 모두 돼요.</p>
   <div class="week">`;
   for(let i=0;i<7;i++){
@@ -572,6 +579,8 @@ function renderSchedule(){
     if(el.tagName==="SELECT") el.addEventListener("change",render);
     if(el.tagName==="INPUT") el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
   });
+  { const m=main.querySelector("#weekMemo"); const fit=()=>{m.style.height="auto";m.style.height=(m.scrollHeight+2)+"px";}; fit();
+    m.addEventListener("input",()=>{fit(); const w=ensureWeek(state.weekKey); w.memo=m.value; saveWeek(state.weekKey);}); }
   main.querySelectorAll("[data-note]").forEach(el=>{const fit=()=>{el.style.height="auto";el.style.height=(el.scrollHeight+2)+"px";};fit();let width=el.clientWidth;const observer=new ResizeObserver(()=>{if(el.clientWidth!==width){width=el.clientWidth;fit();}});observer.observe(el);noteObservers.push(observer);el.addEventListener("input",()=>{fit();const w=ensureWeek(state.weekKey); w.days[+el.dataset.note].note=el.value; saveWeek(state.weekKey);});});
   main.querySelectorAll("[data-chk]").forEach(b=>b.onclick=()=>{
     const w=ensureWeek(state.weekKey), sh=w.days[+b.dataset.d].shifts[+b.dataset.j];
