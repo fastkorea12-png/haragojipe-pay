@@ -28,6 +28,7 @@ h1{font-family:var(--display);font-weight:800;font-size:1.6rem;margin:0;letter-s
 h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.78rem;color:var(--muted);letter-spacing:.04em}
 h2{font-family:var(--display);font-size:1.2rem;margin:0;text-wrap:balance}
 h3{font-size:.95rem;margin:0}
+.totals-view{font:700 .95rem var(--body);color:var(--fg);border:0;background:transparent;padding:0 2px;margin-bottom:6px;cursor:pointer}
 nav.tabs{display:flex;gap:4px;background:var(--sunk);padding:4px;border-radius:0;flex-wrap:wrap}
 nav.tabs button{border:0;background:transparent;color:var(--muted);font:600 .9rem var(--body);padding:8px 14px;border-radius:0;cursor:pointer}
 nav.tabs button[aria-selected="true"]{background:var(--surface);color:var(--wine);box-shadow:none}
@@ -36,6 +37,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .btn{border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:0;cursor:pointer;font-weight:500;font-size:.88rem}
 .btn:hover{border-color:var(--wine)}
 .btn.primary{background:var(--wine);border-color:var(--wine);color:var(--surface)}
+#cleanW[aria-pressed="true"]{border-color:var(--wine);color:var(--wine);font-weight:700}
 .btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
 .btn.small{padding:3px 8px;font-size:.8rem}
 input[type=text],input[type=number],input[type=date],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:0;padding:6px 8px;min-width:0}
@@ -320,6 +322,8 @@ const state = {
   db: null,
 };
 try { const t = localStorage.getItem("hgp.tab"); if (t) state.tab = t; } catch(e){}
+// 이번 주 합계의 주급 열: 기본은 숨김, 선택은 이 브라우저에만 기억
+try { state.showPay = localStorage.getItem("hgp.showPay")==="1"; } catch(e){}
 
 /* ---------- 날짜 ---------- */
 function pad(n){return String(n).padStart(2,"0")}
@@ -454,6 +458,9 @@ function shiftClockHTML(sh,i,wk,set){
   return (c? clock(c.s)+"–"+clock(c.e)+" · "+hrs(c.hours)+"h"+(c.brk?" (휴게 "+hrs(c.brk)+"h 뺌)":"") : (sh.t?"시간 형식을 확인해 주세요":"시간을 입력하세요"))+voteNote+stNote;
 }
 function dayHoursText(day,set){ let dh=0; day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(c) dh+=c.hours;}); return dh?hrs(dh)+"h":""; }
+// 비고의 '화장실 청소' 줄: 버튼으로 이번 주 7일에 한꺼번에 넣고 뺀다. 다른 비고 내용은 그대로 둔다.
+const CLEAN="화장실 청소";
+const hasClean=note=>String(note||"").split("\n").some(l=>l.trim()===CLEAN);
 function weekTotalsHTML(wk,set){
   const tot={};
   if(wk) wk.days.forEach(day=>day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(!c) return; tot[sh.who]=tot[sh.who]||{h:0,n:0,d:0}; tot[sh.who].h+=c.hours; tot[sh.who].n+=c.night; tot[sh.who].d++;}));
@@ -463,9 +470,11 @@ function weekTotalsHTML(wk,set){
     const warn = p.role!=="owner" && t.h>=15 ? '<span class="chip warn">주 15시간 이상 · 주휴 대상</span>' : (p.role!=="owner" && t.h>=13 ? '<span class="chip warn">15시간까지 '+hrs(15-t.h)+'h 남음</span>':"");
     rows+=`<tr><td>${esc(p.name)} ${p.role==="owner"?'<span class="chip owner">사장</span>':""} ${warn}</td><td class="num">${t.d}일</td><td class="num">${hrs(t.h)}</td><td class="num">${won(pay)}</td></tr>`;
   });
-  return `<div class="card" style="margin-top:14px"><h3 style="margin-bottom:6px">이번 주 합계</h3>
-    ${rows?`<div class="scroll"><table><thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>주급(세전)</th></tr></thead><tbody>${rows}</tbody>
-    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(sumH)}</td><td class="num">${won(sumPay)}</td></tr></tfoot></table></div>`:'<p class="muted">이 주에는 아직 근무가 없어요. <b>+ 근무 추가</b>나 <b>지난주 그대로 가져오기</b>로 채워 보세요.</p>'}
+  const pay=state.showPay;
+  if(!pay) rows=rows.replace(/<td class="num">[^<]*<\/td><\/tr>/g,"</tr>");
+  return `<div class="card" style="margin-top:14px"><select id="payView" class="totals-view" aria-label="이번 주 합계 보기"><option value="0" ${pay?"":"selected"}>이번 주 합계</option><option value="1" ${pay?"selected":""}>이번 주 합계(주급 포함)</option></select>
+    ${rows?`<div class="scroll"><table><thead><tr><th>이름</th><th>근무일</th><th>시간</th>${pay?"<th>주급(세전)</th>":""}</tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(sumH)}</td>${pay?`<td class="num">${won(sumPay)}</td>`:""}</tr></tfoot></table></div>`:'<p class="muted">이 주에는 아직 근무가 없어요. <b>+ 근무 추가</b>나 <b>지난주 그대로 가져오기</b>로 채워 보세요.</p>'}
   </div>`;
 }
 function renderSchedule(){
@@ -481,6 +490,7 @@ function renderSchedule(){
     <button class="btn" id="nextW" aria-label="다음 주">다음</button>
     <button class="btn ghost" id="thisW">이번 주</button>
     <span class="grow"></span>
+    <button class="btn" id="cleanW" aria-pressed="${wk&&wk.days.every(d=>hasClean(d.note))?"true":"false"}">화장실 청소</button>
     <button class="btn" id="copyW">지난주 그대로 가져오기</button>
     <button class="btn primary" id="noticeW" aria-pressed="false">공지용 근무표</button>
   </div>
@@ -539,9 +549,14 @@ function renderSchedule(){
   html+=`</div>`;
   html+=`<div id="weekTotals">${weekTotalsHTML(wk,set)}</div>`;
   main.innerHTML=html;
+  // 합계 칸은 입력 중에 다시 그려지므로 바깥 칸에서 선택 변경을 받는다.
+  main.querySelector("#weekTotals").onchange=e=>{if(e.target.id!=="payView")return;state.showPay=e.target.value==="1";try{localStorage.setItem("hgp.showPay",state.showPay?"1":"0")}catch(err){};e.currentTarget.innerHTML=weekTotalsHTML(state.weeks[state.weekKey],S());e.currentTarget.querySelector("#payView").focus();};
 
   const go=n=>{state.weekKey=ymd(addDays(parseYmd(state.weekKey),n));render();};
   main.querySelector("#prevW").onclick=()=>go(-7);
+  main.querySelector("#cleanW").onclick=()=>{const w=ensureWeek(state.weekKey), all=w.days.every(d=>hasClean(d.note));
+    w.days.forEach(d=>{const lines=String(d.note||"").split("\n").filter(l=>l.trim()&&l.trim()!==CLEAN); if(!all) lines.push(CLEAN); d.note=lines.join("\n");});
+    saveWeek(state.weekKey); render();};
   main.querySelector("#nextW").onclick=()=>go(7);
   main.querySelector("#thisW").onclick=()=>{state.weekKey=weekStartKey(new Date());render();};
   main.querySelector("#noticeW").onclick=()=>{state.scheduleNotice=true;render();};
