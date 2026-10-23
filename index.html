@@ -28,6 +28,7 @@ h1{font-family:var(--display);font-weight:800;font-size:1.6rem;margin:0;letter-s
 h1 small{display:block;font-family:var(--body);font-weight:500;font-size:.78rem;color:var(--muted);letter-spacing:.04em}
 h2{font-family:var(--display);font-size:1.2rem;margin:0;text-wrap:balance}
 h3{font-size:.95rem;margin:0}
+.budget{margin-top:10px;display:flex;flex-direction:column;gap:4px}.budget-row{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;font-size:.86rem;padding:6px 8px;border-radius:6px;background:var(--wine-soft)}.budget-row.over{color:var(--sun);font-weight:700}
 .totals-view{font:700 .95rem var(--body);color:var(--fg);border:0;background:transparent;padding:0 2px;margin-bottom:6px;cursor:pointer}
 nav.tabs{display:flex;gap:4px;background:var(--sunk);padding:4px;border-radius:0;flex-wrap:wrap}
 nav.tabs button{border:0;background:transparent;color:var(--muted);font:600 .9rem var(--body);padding:8px 14px;border-radius:0;cursor:pointer}
@@ -461,20 +462,34 @@ function dayHoursText(day,set){ let dh=0; day.shifts.forEach(sh=>{const c=effCal
 // 비고의 '화장실 청소' 줄: 버튼으로 이번 주 7일에 한꺼번에 넣고 뺀다. 다른 비고 내용은 그대로 둔다.
 const CLEAN="화장실 청소";
 const hasClean=note=>String(note||"").split("\n").some(l=>l.trim()===CLEAN);
+// 주휴수당: 주 15시간 이상 일한 직원(사장 제외)에게 (주 시간 ÷ 40 × 8)시간분, 40시간에서 멈춘다.
+const holidayHours=h=>h>=15?Math.min(h,40)/40*8:0;
+// 월 인건비 예산을 날짜 수로 나눠 한 주 예산을 만든다. 달이 걸친 주는 날마다 그 달 기준으로 더한다.
+const BUDGET_DEFAULT=3500000;
+const monthBudget=set=>set.budget??BUDGET_DEFAULT;
+function weekBudget(start,set){let b=0;for(let i=0;i<7;i++){const d=addDays(start,i);b+=monthBudget(set)/new Date(d.getFullYear(),d.getMonth()+1,0).getDate();}return Math.round(b);}
 function weekTotalsHTML(wk,set){
-  const tot={};
+  const tot={}, start=parseYmd(state.weekKey), show=state.showPay;
   if(wk) wk.days.forEach(day=>day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(!c) return; tot[sh.who]=tot[sh.who]||{h:0,n:0,d:0}; tot[sh.who].h+=c.hours; tot[sh.who].n+=c.night; tot[sh.who].d++;}));
-  let rows="", sumH=0, sumPay=0;
+  let rows="", sumH=0, sumPay=0, sumHol=0, staffCost=0;
   set.staff.filter(p=>tot[p.id]).forEach(p=>{
-    const t=tot[p.id], pay=t.h*p.wage; sumH+=t.h; sumPay+=pay;
-    const warn = p.role!=="owner" && t.h>=15 ? '<span class="chip warn">주 15시간 이상 · 주휴 대상</span>' : (p.role!=="owner" && t.h>=13 ? '<span class="chip warn">15시간까지 '+hrs(15-t.h)+'h 남음</span>':"");
-    rows+=`<tr><td>${esc(p.name)} ${p.role==="owner"?'<span class="chip owner">사장</span>':""} ${warn}</td><td class="num">${t.d}일</td><td class="num">${hrs(t.h)}</td><td class="num">${won(pay)}</td></tr>`;
+    const t=tot[p.id], owner=p.role==="owner", pay=Math.round(t.h*p.wage), holH=owner?0:holidayHours(t.h), hol=Math.round(holH*p.wage);
+    sumH+=t.h; sumPay+=pay; sumHol+=hol; if(!owner) staffCost+=pay+hol;
+    const warn = !owner && t.h>=15 ? '<span class="chip warn">주 15시간 이상 · 주휴 대상</span>' : (!owner && t.h>=13 ? '<span class="chip warn">15시간까지 '+hrs(15-t.h)+'h 남음</span>':"");
+    rows+=`<tr><td>${esc(p.name)} ${owner?'<span class="chip owner">사장</span>':""} ${warn}</td><td class="num">${t.d}일</td><td class="num">${hrs(t.h)}</td>${show?`<td class="num">${won(pay)}</td><td>${hol?`주휴 ${won(hol)}원 <small class="muted">(${hrs(holH)}h)</small>`:"–"}</td>`:""}</tr>`;
   });
-  const pay=state.showPay;
-  if(!pay) rows=rows.replace(/<td class="num">[^<]*<\/td><\/tr>/g,"</tr>");
-  return `<div class="card" style="margin-top:14px"><select id="payView" class="totals-view" aria-label="이번 주 합계 보기"><option value="0" ${pay?"":"selected"}>이번 주 합계</option><option value="1" ${pay?"selected":""}>이번 주 합계(주급 포함)</option></select>
-    ${rows?`<div class="scroll"><table><thead><tr><th>이름</th><th>근무일</th><th>시간</th>${pay?"<th>주급(세전)</th>":""}</tr></thead><tbody>${rows}</tbody>
-    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(sumH)}</td>${pay?`<td class="num">${won(sumPay)}</td>`:""}</tr></tfoot></table></div>`:'<p class="muted">이 주에는 아직 근무가 없어요. <b>+ 근무 추가</b>나 <b>지난주 그대로 가져오기</b>로 채워 보세요.</p>'}
+  // 예산 비교는 직원 인건비(주급+주휴, 사장 제외)로 한다. 달은 이 주의 토요일이 속한 달.
+  let budget="";
+  if(show&&rows){
+    const wb=weekBudget(start,set), sat=addDays(start,6), mk=ymd(sat).slice(0,7), mb=monthBudget(set);
+    const mc=computeMonth(mk,true,false,true).rows.filter(r=>!r.owner).reduce((a,r)=>a+r.gross,0);
+    const line=(label,cost,limit)=>`<div class="budget-row ${cost>limit?"over":""}"><span>${label}</span><span class="num">${won(cost)} / ${won(limit)}원 · ${Math.round(cost/limit*100)}%${cost>limit?` · ${won(cost-limit)}원 초과`:` · ${won(limit-cost)}원 남음`}</span></div>`;
+    budget=`<div class="budget">${line("이번 주 직원 인건비 / 주 예산",staffCost,wb)}${line(`${sat.getMonth()+1}월 예상 직원 인건비 / 월 예산`,mc,mb)}
+      <p class="muted" style="font-size:.78rem;margin:4px 0 0">직원 인건비 = 주급 + 주휴(사장 제외). 월 예상은 남은 날을 지금 스케줄로 채워 계산해요. 월 예산은 직원·설정에서 바꿔요.${set.holiday?"":" 급여 계산 탭의 주휴수당은 아직 꺼져 있어요(직원·설정)."}</p></div>`;
+  }
+  return `<div class="card" style="margin-top:14px"><select id="payView" class="totals-view" aria-label="이번 주 합계 보기"><option value="0" ${show?"":"selected"}>이번 주 합계</option><option value="1" ${show?"selected":""}>이번 주 합계(주급 포함)</option></select>
+    ${rows?`<div class="scroll"><table><thead><tr><th>이름</th><th>근무일</th><th>시간</th>${show?"<th>주급(세전)</th><th>비고</th>":""}</tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(sumH)}</td>${show?`<td class="num">${won(sumPay)}</td><td>${sumHol?`주휴 ${won(sumHol)}원`:"–"}</td>`:""}</tr></tfoot></table></div>${budget}`:'<p class="muted">이 주에는 아직 근무가 없어요. <b>+ 근무 추가</b>나 <b>지난주 그대로 가져오기</b>로 채워 보세요.</p>'}
   </div>`;
 }
 function renderSchedule(){
@@ -689,8 +704,8 @@ function deduction(p, gross){
   }
   return {items:[],total:0};
 }
-function computeMonth(mk, project, confirmedOnly=false){
-  const set=S(), days=monthDays(mk), res={}, todayK=ymd(new Date()); let estDays=0, filledDays=0, unchecked=0, absent=0;
+function computeMonth(mk, project, confirmedOnly=false, withHoliday){
+  const set=S(), holidayOn=withHoliday??set.holiday, days=monthDays(mk), res={}, todayK=ymd(new Date()); let estDays=0, filledDays=0, unchecked=0, absent=0;
   const get=id=>res[id]||(res[id]={hours:0,night:0,days:new Set(),log:[],weeks:{}});
   days.forEach(d=>{
     const {shifts,est}=dayShifts(d,project); if(shifts.length){ est?estDays++:filledDays++; }
@@ -703,7 +718,7 @@ function computeMonth(mk, project, confirmedOnly=false){
   });
   // 주휴: 토요일이 이 달에 있는 주 기준, 그 주 전체 시간으로 판단
   const holidayWeeks=[];
-  if(set.holiday){
+  if(holidayOn){
     days.filter(d=>d.getDay()===6).forEach(sat=>{
       const st=addDays(sat,-6), per={};
       for(let i=0;i<7;i++){const d=addDays(st,i); const ds=dayShifts(d,project); ds.shifts.forEach(sh=>{if(confirmedOnly && (ds.est || !["done","changed"].includes(sh.chk)))return;const c=ds.est?shiftCalc(sh.t,set):effCalc(sh,set); if(c) per[sh.who]=(per[sh.who]||0)+c.hours;});}
@@ -715,7 +730,7 @@ function computeMonth(mk, project, confirmedOnly=false){
     const base=Math.round(r.hours*p.wage);
     const nightPay= !owner && set.night ? Math.round(r.night*p.wage*0.5) : 0;
     let hol=0, holH=0;
-    if(!owner && set.holiday) holidayWeeks.forEach(w=>{const h=w.per[p.id]||0; if(h>=15){const hh=Math.min(h,40)/40*8; holH+=hh; hol+=Math.round(hh*p.wage);}});
+    if(!owner && holidayOn) holidayWeeks.forEach(w=>{const h=w.per[p.id]||0; if(h>=15){const hh=Math.min(h,40)/40*8; holH+=hh; hol+=Math.round(hh*p.wage);}});
     const gross=base+nightPay+hol;
     const ded= owner? {items:[],total:0} : deduction(p,gross);
     return {p, owner, hours:r.hours, night:r.night, days:r.days.size, log:r.log, base, nightPay, hol, holH, gross, ded, net:gross-ded.total, est:r.log.some(l=>l.est)};
@@ -892,6 +907,7 @@ function renderSettings(){
       <div class="grid3">
         <label class="field"><span>상호</span><input id="shop" type="text" value="${esc(set.shop)}"></label>
         <label class="field"><span>최저시급 (원)</span><input id="minWage" type="text" inputmode="numeric" class="num" value="${won(set.minWage)}"></label>
+        <label class="field"><span>월 인건비 예산 (원, 사장 제외)</span><input id="budget" type="text" inputmode="numeric" class="num" value="${won(monthBudget(set))}"></label>
         <label class="field"><span>급여일 (다음 달)</span><input id="payDay" type="number" min="1" max="28" class="num" value="${set.payDay}"></label>
       </div>
       <h3 style="margin:14px 0 6px">4대보험 근로자 부담률 (%)</h3>
@@ -927,6 +943,7 @@ function renderSettings(){
   ["night","holiday","breakDeduct"].forEach(k=>main.querySelector("#"+k).onchange=e=>{set[k]=e.target.checked;saveSettings();});
   main.querySelector("#shop").onchange=e=>{set.shop=e.target.value.trim()||"하라고지페";saveSettings();};
   main.querySelector("#minWage").onchange=e=>{set.minWage=num(e.target.value);saveSettings();render();};
+  main.querySelector("#budget").onchange=e=>{set.budget=num(e.target.value)||BUDGET_DEFAULT;saveSettings();render();};
   main.querySelector("#holAdd").onclick=()=>{const k=main.querySelector("#holDate").value, v=main.querySelector("#holName").value.trim()||"휴일"; if(!/^\d{4}-\d{2}-\d{2}$/.test(k)){toast("날짜를 골라 주세요");return;} set.holidays={...(set.holidays||{}),[k]:v.slice(0,20)}; saveSettings(); render(); toast(k+" "+v+" 추가했어요");};
   main.querySelectorAll("[data-delhol]").forEach(b=>b.onclick=()=>{const h={...(set.holidays||{})}; delete h[b.dataset.delhol]; set.holidays=h; saveSettings(); render();});
   main.querySelector("#payDay").onchange=e=>{set.payDay=Math.min(28,Math.max(1,num(e.target.value)||10));saveSettings();};
