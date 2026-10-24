@@ -140,7 +140,7 @@ td .chip,.chip{display:inline-block;font-size:.7rem;padding:1px 7px;border-radiu
 .slip .meta div{display:flex;justify-content:space-between;gap:8px;padding:6px 4px;border-bottom:1px solid var(--line)}
 .slip .meta span:first-child{color:var(--muted)}
 .slip .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:18px}
-@media (max-width:600px){.slip{padding:18px}.slip .meta,.slip .cols{grid-template-columns:1fr}}
+@media (max-width:600px){.slip,.slip.xl{padding:18px 14px}.slip .meta,.slip .cols{grid-template-columns:1fr}}
 .slip h3{font-size:.8rem;letter-spacing:.1em;color:var(--muted);border-bottom:2px solid var(--fg);padding-bottom:4px;margin-bottom:2px}
 .slip .row{display:flex;justify-content:space-between;gap:10px;padding:6px 2px;border-bottom:1px solid var(--line);font-size:.88rem}
 .slip .row small{display:block;color:var(--muted);font-size:.72rem;font-family:var(--mono)}
@@ -266,6 +266,64 @@ th,td{border:1px solid var(--line)}
 .record-status{font:600 .8rem var(--body);padding:4px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
 .record-status.done{color:var(--record-done)}.record-status.changed{color:var(--record-changed)}.record-status.absent{color:var(--record-absent)}
 .record-status.future{background:var(--sunk)}
+/* 기록 달력 */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cal-head,.cal-cell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.cal-head{font-size:.75rem;font-weight:600;color:var(--muted);text-align:center;padding:4px;background:var(--sunk)}
+.cal-head.sun{color:var(--sun)}.cal-head.sat{color:var(--sat)}
+.cal-cell{min-height:92px;padding:4px;display:flex;flex-direction:column;gap:3px;background:var(--surface)}
+.cal-cell.blank{background:var(--sunk)}
+.cal-cell.today{outline:2px solid var(--wine);outline-offset:-2px}
+.cal-date{display:flex;align-items:baseline;gap:4px;font-size:.8rem;flex-wrap:wrap}
+.cal-date .cal-dow{display:none;color:var(--muted);font-size:.72rem}
+.cal-cell.sun .cal-date b{color:var(--sun)}.cal-cell.sat .cal-date b{color:var(--sat)}
+.cal-shift{font-size:.72rem;line-height:1.3;padding:2px 4px;background:var(--sunk);border-left:3px solid var(--muted);display:flex;flex-wrap:wrap;column-gap:4px;min-width:0}
+.cal-shift .who{font-weight:700}
+.cal-shift .t{font-family:var(--mono);color:var(--muted)}
+.cal-shift .tag{font-weight:600}
+.cal-shift.done{border-left-color:var(--record-done)}
+.cal-shift.changed{border-left-color:var(--record-changed)}.cal-shift.changed .tag{color:var(--record-changed)}
+.cal-shift.absent{border-left-color:var(--record-absent)}.cal-shift.absent .t{text-decoration:line-through}.cal-shift.absent .tag{color:var(--record-absent)}
+.cal-shift.unchecked .tag,.cal-shift.future .tag{color:var(--muted)}
+.cal-shift.future{background:transparent;border:1px dashed var(--line);border-left-width:3px}
+.cal-body{flex:1;display:flex;flex-direction:column;gap:3px}
+.cal-total{margin-top:auto;text-align:right;font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.cal-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.75rem;color:var(--muted);margin-top:8px}
+.cal-legend span::before{content:"";display:inline-block;width:3px;height:.9em;margin-right:4px;vertical-align:-1px;background:currentColor}
+.cal-legend .done{color:var(--record-done)}.cal-legend .changed{color:var(--record-changed)}.cal-legend .absent{color:var(--record-absent)}
+details.records>summary{cursor:pointer;font-weight:700;padding:2px 0}
+details.records[open]>summary{margin-bottom:10px}
+@media(max-width:640px){
+  .cal{grid-template-columns:1fr}
+  .cal-head,.cal-cell.blank,.cal-cell.empty-day{display:none}
+  .cal-cell{min-height:0;flex-direction:row;gap:8px}
+  .cal-cell .cal-date{flex:0 0 4.2em;flex-direction:column;gap:0}.cal-body{min-width:0}
+  .cal-date .cal-dow{display:inline}
+  .cal-total{text-align:left}
+}
+/* 급여명세서 (엑셀 양식) */
+.slip.xl{max-width:860px;padding:28px 24px}
+.slip.xl h2{letter-spacing:.04em;font-size:1.45rem;margin:0 0 18px}
+.slip.xl .to{text-align:right;font-size:1.15rem;font-weight:700;margin-bottom:18px}
+.slip.xl .to u{text-underline-offset:4px}
+.slip.xl h3{font-size:.9rem;letter-spacing:0;color:var(--fg);border:0;padding:0;margin:18px 0 4px;display:flex;justify-content:space-between;gap:8px}
+.slip.xl h3 small{font-weight:400;color:var(--fg);font-size:.8rem}
+.slip.xl table{font-size:.85rem}
+.slip.xl th,.slip.xl td{border:1px solid var(--fg);padding:5px 8px}
+.slip.xl thead th{background:var(--sunk);color:var(--fg);font-weight:600;text-align:center;font-size:.85rem;letter-spacing:.4em}
+.slip.xl td.c{text-align:center}
+.slip.xl .xl-days{width:max-content;min-width:100%}
+.slip.xl .xl-days th,.slip.xl .xl-days td{padding:3px 0;min-width:26px;text-align:center;font-family:var(--mono);font-size:.78rem;letter-spacing:0;background:transparent}
+.slip.xl .xl-days tr:first-child th,.slip.xl .xl-days tr:nth-child(2) th{background:var(--sunk)}
+.slip.xl .xl-days .sun{color:var(--sun)}.slip.xl .xl-days .sat{color:var(--sat)}
+.slip.xl .xl-days .sum th{background:var(--sunk)}
+.slip.xl .xl-days td.empty{border:0}
+.slip.xl .xl-pay td:first-child{text-align:center;width:28%}
+.slip.xl .xl-pay td:nth-child(2){width:36%}
+.slip.xl .xl-pay td:last-child{text-align:center}
+.slip.xl .xl-net td{font-weight:700;font-size:1rem;padding:9px 8px}
+.slip.xl .xl-net td:first-child{letter-spacing:.6em}
+.slip.xl .foot{border-top:1px solid var(--line);padding-top:8px}
 
 [hidden]{display:none!important}
 #login{position:fixed;inset:0;background:var(--bg);z-index:100;display:grid;place-items:center}#login form{border:2px solid var(--fg);padding:32px;max-width:360px;width:90%}
@@ -657,6 +715,17 @@ function monthRecords(){
 }
 function recordStatus(r){return CHK[r.status]||(r.status==='unchecked'?'미확인':'예정');}
 function recordClock(c){return c?clock(c.s)+'–'+clock(c.e):'–';}
+function recordCalendarHTML(records){
+  const days=monthDays(state.month), today=ymd(new Date());
+  const cells=['일','월','화','수','목','금','토'].map((d,i)=>`<div class="cal-head${i===0?' sun':i===6?' sat':''}">${d}</div>`);
+  for(let i=0;i<days[0].getDay();i++)cells.push('<div class="cal-cell blank" aria-hidden="true"></div>');
+  days.forEach(d=>{
+    const date=ymd(d), rr=records.filter(r=>r.date===date), hol=holidayOf(d), total=rr.reduce((n,r)=>n+(r.actual?.hours||0),0);
+    const cls=(d.getDay()===0||hol?' sun':d.getDay()===6?' sat':'')+(date===today?' today':'')+(rr.length?'':' empty-day');
+    cells.push(`<div class="cal-cell${cls}"><div class="cal-date"><b>${d.getDate()}</b><span class="cal-dow">${d.getMonth()+1}월 ${DOW[d.getDay()]}</span>${hol?`<span class="holname">${esc(hol)}</span>`:''}</div><div class="cal-body">${rr.map(r=>`<div class="cal-shift ${r.status}"><span class="who">${esc(staffById(r.sh.who)?.name||'삭제된 직원')}</span><span class="t">${recordClock(r.actual||r.planned)}</span>${r.status==='done'?'':`<span class="tag">${recordStatus(r)}</span>`}</div>`).join('')}${total?`<div class="cal-total">${hrs(total)}h</div>`:''}</div></div>`);
+  });
+  return `<div class="cal">${cells.join('')}</div>`;
+}
 function renderRecords(){
   const sync=cache['app/sync']?.data;
   const records=monthRecords(), [y,m]=state.month.split('-').map(Number);
@@ -668,10 +737,12 @@ function renderRecords(){
   <p class="muted">마지막 시트 동기화: ${sync?esc(new Date(sync.at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}))+' · 반영 '+Number(sync.applied||0)+'건 · 명단에 없는 이름: '+esc((sync.unknown||[]).join(', ')||'없음'):'아직 동기화 기록이 없어요'}</p>
   <p class="muted">실제 입력된 주만 표시합니다. 미확인은 오늘 이전 근무이며, 체크 전까지 예정 시간으로 합산합니다.</p>
   <div class="section"><div class="card"><h3>사람별 요약 (시간)</h3><div class="scroll"><table id="recordSummary"><thead><tr>${['근무자','예정 근무 수','예정 시간','실제 시간','근무함','시간 다름','결근','미확인'].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>${summary}</tbody></table></div></div>
-  <div class="card"><h3>상세 기록</h3><div class="scroll"><table><thead><tr>${['날짜(요일)','근무자','예정 시각','실제 시각','상태','실제 시간'].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>${records.map((r,n)=>`<tr><td>${r.date} (${DOW[r.i]})</td><td>${esc(staffById(r.sh.who)?.name||'삭제된 직원')}</td><td>${recordClock(r.planned)}</td><td>${recordClock(r.actual)}</td><td><select class="record-status ${r.status}" data-record="${n}" aria-label="${r.date} 근무 상태"><option value="" ${!r.sh.chk?'selected':''}>${r.date<ymd(new Date())?'미확인':'예정'}</option>${Object.entries(CHK).map(([k,v])=>`<option value="${k}" ${r.sh.chk===k?'selected':''}>${v}</option>`).join('')}</select>${r.sh.chk==='changed'?`<input type="text" data-record-at="${n}" value="${esc(r.sh.at||'')}" aria-label="실제 시간" placeholder="6.5-10.5">`:''}</td><td>${hrs(r.actual?.hours||0)}h</td></tr>`).join('')||'<tr><td colspan="6">입력된 근무 기록이 없습니다.</td></tr>'}</tbody></table></div></div></div>`;
+  <div class="card"><h3>${y}년 ${m}월 달력</h3>${recordCalendarHTML(records)}<div class="cal-legend"><span class="done">근무함</span><span class="changed">시간 다름</span><span class="absent">결근</span><span>미확인·예정</span></div></div>
+  <details class="card records" id="recordDetail" ${state.recordOpen?'open':''}><summary>상세 기록 · 상태 고치기</summary><div class="scroll"><table><thead><tr>${['날짜(요일)','근무자','예정 시각','실제 시각','상태','실제 시간'].map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>${records.map((r,n)=>`<tr><td>${r.date} (${DOW[r.i]})</td><td>${esc(staffById(r.sh.who)?.name||'삭제된 직원')}</td><td>${recordClock(r.planned)}</td><td>${recordClock(r.actual)}</td><td><select class="record-status ${r.status}" data-record="${n}" aria-label="${r.date} 근무 상태"><option value="" ${!r.sh.chk?'selected':''}>${r.date<ymd(new Date())?'미확인':'예정'}</option>${Object.entries(CHK).map(([k,v])=>`<option value="${k}" ${r.sh.chk===k?'selected':''}>${v}</option>`).join('')}</select>${r.sh.chk==='changed'?`<input type="text" data-record-at="${n}" value="${esc(r.sh.at||'')}" aria-label="실제 시간" placeholder="6.5-10.5">`:''}</td><td>${hrs(r.actual?.hours||0)}h</td></tr>`).join('')||'<tr><td colspan="6">입력된 근무 기록이 없습니다.</td></tr>'}</tbody></table></div></details></div>`;
   const move=n=>{state.month=monthKey(new Date(y,m-1+n,1));render();};
   main.querySelector('#recordPrev').onclick=()=>move(-1);main.querySelector('#recordNext').onclick=()=>move(1);
   main.querySelector('#recordPerson').onchange=e=>{state.recordStaff=e.target.value;render();};
+  main.querySelector('#recordDetail').ontoggle=e=>{state.recordOpen=e.target.open;};
   main.querySelectorAll('[data-record]').forEach(el=>el.onchange=()=>{const r=records[+el.dataset.record];r.sh.chk=el.value;if(el.value==='changed'&&!r.sh.at)r.sh.at=r.sh.t;saveWeek(r.key);render();});
   main.querySelectorAll('[data-record-at]').forEach(el=>el.onchange=()=>{const r=records[+el.dataset.recordAt];r.sh.at=el.value.trim();saveWeek(r.key);render();});
   main.querySelector('#recordCopy').onclick=async()=>{
@@ -818,40 +889,38 @@ function renderSlip(){
   const unconfirmed=monthDays(state.month).reduce((n,d)=>n+(state.weeks[weekStartKey(d)]?.days[d.getDay()]?.shifts||[]).filter(sh=>sh.who===state.slipStaff&&!sh.chk).length,0);
   if(unconfirmed)html+=`<div class="banner">확인 안 된 근무 ${unconfirmed}건은 명세서에 들어가지 않았어요</div>`;
   if(!row){ main.innerHTML=html+`<div class="empty">${y}년 ${m}월에 이 직원의 확인된 근무 기록이 없어요.</div>`; bindSlip(); return; }
-  html+=`<article class="slip" id="slipDoc">${slipHTML(row)}</article>`;
+  html+=`<article class="slip xl" id="slipDoc">${slipHTML(row)}</article>`;
   main.innerHTML=html; bindSlip(row);
 }
 function slipHTML(row){
   const set=S(); const [y,m]=state.month.split("-").map(Number);
-  const last=new Date(y,m,0).getDate();
-  const dedLabel={none:"공제 없음","3.3":"사업소득 3.3% 원천징수","4":"4대보험 근로자 부담분"}[row.p.deduct||"none"];
-  return `<h2>급 여 명 세 서</h2><div class="sub">${y}년 ${m}월분 · ${esc(set.shop)}</div>
-  <div class="meta">
-    <div><span>성명</span><b>${esc(row.p.name)}</b></div>
-    <div><span>지급일</span><span>${payDate(state.month)}</span></div>
-    <div><span>귀속기간</span><span class="num">${y}.${pad(m)}.01 – ${y}.${pad(m)}.${last}</span></div>
-    <div><span>시급</span><span class="num">${won(row.p.wage)}원</span></div>
-    <div><span>근로일수</span><span class="num">${row.days}일</span></div>
-    <div><span>총 근로시간</span><span class="num">${hrs(row.hours)}시간</span></div>
-  </div>
-  <div class="cols">
-    <div><h3>지급 항목</h3>
-      <div class="row"><span>기본급<small>${hrs(row.hours)}h × ${won(row.p.wage)}원</small></span><span class="num">${won(row.base)}</span></div>
-      ${row.nightPay?`<div class="row"><span>야간근로수당<small>${hrs(row.night)}h × ${won(row.p.wage)}원 × 0.5</small></span><span class="num">${won(row.nightPay)}</span></div>`:""}
-      ${row.hol?`<div class="row"><span>주휴수당<small>${hrs(row.holH)}h × ${won(row.p.wage)}원</small></span><span class="num">${won(row.hol)}</span></div>`:""}
-      <div class="row"><b>지급총액</b><b class="num">${won(row.gross)}</b></div>
-    </div>
-    <div><h3>공제 항목</h3>
-      ${row.ded.items.length? row.ded.items.map(([k,v])=>`<div class="row"><span>${k}</span><span class="num">${won(v)}</span></div>`).join("") : `<div class="row"><span class="muted">${dedLabel}</span><span class="num">0</span></div>`}
-      <div class="row"><b>공제합계</b><b class="num">${won(row.ded.total)}</b></div>
-    </div>
-  </div>
-  <div class="net"><b>실지급액</b><span class="v">${won(row.net)}원</span></div>
-  <div class="log"><h3 style="font-size:.8rem;letter-spacing:.1em;color:var(--muted);border-bottom:2px solid var(--fg);padding-bottom:4px">근무 내역</h3>
-    <div class="scroll"><table><thead><tr><th>날짜</th><th>출근</th><th>퇴근</th><th>근로시간</th></tr></thead><tbody>
-    ${row.log.map(l=>`<tr><td>${l.date.getMonth()+1}/${l.date.getDate()} (${DOW[l.date.getDay()]})</td><td class="num">${clock(l.c.s)}</td><td class="num">${clock(l.c.e)}</td><td class="num">${hrs(l.c.hours)}</td></tr>`).join("")}
-    </tbody></table></div></div>
-  <div class="foot"><span>${esc(set.shop)}</span><span>${dedLabel}</span></div>`;
+  const days=monthDays(state.month), byDay={};
+  row.log.forEach(l=>{const k=l.date.getDate();byDay[k]=(byDay[k]||0)+l.c.hours;});
+  const dc=d=>d.getDay()===0||holidayOf(d)?' class="sun"':d.getDay()===6?' class="sat"':'';
+  const tr=(a,b,c,cls="")=>`<tr${cls}><td>${a}</td><td class="num">₩${won(b)}</td><td>${c}</td></tr>`;
+  const pay=[tr("근 무 비",row.base,`${hrs(row.hours)}시간 X ${won(row.p.wage)}원`)];
+  if(row.nightPay)pay.push(tr("야간근로수당",row.nightPay,`${hrs(row.night)}시간 X ${won(row.p.wage)}원 X 0.5`));
+  pay.push(tr("주휴수당",row.hol,row.hol?`${hrs(row.holH)}시간 X ${won(row.p.wage)}원`:""));
+  const ded=row.p.deduct==="3.3"?[tr("원천징수",row.ded.total,"급여의 3.3%")]
+    :row.ded.items.length?row.ded.items.map(([k,v])=>tr(k,v,"")):[tr("공제 없음",0,"")];
+  const netNote=["근무비",row.nightPay&&"야간근로수당",row.hol&&"주휴수당"].filter(Boolean).join(" + ")+(row.ded.total?" - "+(row.p.deduct==="3.3"?"원천징수":"공제"):"");
+  const head=`<thead><tr><th>내용</th><th>금액</th><th>비고</th></tr></thead>`;
+  return `<h2>${y}년 ${pad(m)}월분 급여 명세서</h2>
+  <div class="to"><u>${esc([...row.p.name].join(" "))}</u> 귀하</div>
+  <h3>1. 근무 기록 <small>(단위 : 시간)</small></h3>
+  <div class="scroll"><table class="xl-days"><tbody>
+    <tr>${days.map(d=>`<th${dc(d)}>${d.getDate()}</th>`).join("")}</tr>
+    <tr>${days.map(d=>`<th${dc(d)}>${DOW[d.getDay()]}</th>`).join("")}</tr>
+    <tr>${days.map(d=>`<td>${byDay[d.getDate()]?hrs(byDay[d.getDate()]):""}</td>`).join("")}</tr>
+    <tr class="sum">${days.slice(0,-2).map(()=>'<td class="empty"></td>').join("")}<th>합</th><td>${hrs(row.hours)}</td></tr>
+  </tbody></table></div>
+  <h3>2. 급여 내역</h3>
+  <div class="scroll"><table class="xl-pay">${head}<tbody>${pay.join("")}</tbody></table></div>
+  <h3>3. 공제 내역</h3>
+  <div class="scroll"><table class="xl-pay">${head}<tbody>${ded.join("")}</tbody></table></div>
+  <h3>4. 지급</h3>
+  <div class="scroll"><table class="xl-pay xl-net">${head}<tbody>${tr("급여",row.net,netNote)}</tbody></table></div>
+  <div class="foot"><span>${esc(set.shop)}</span><span>지급일 ${payDate(state.month)} · 근로 ${row.days}일</span></div>`;
 }
 function bindSlip(row){
   const [y,m]=state.month.split("-").map(Number);
@@ -867,7 +936,7 @@ function bindSlip(row){
   const dl=main.querySelector("#dl");
     dl.onclick=async()=>{
       const css=[...document.querySelectorAll("style")].map(s=>s.textContent).join("\n");
-      const doc=`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(row.p.name)} ${y}년 ${m}월 급여명세서</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono&family=Nanum+Myeongjo:wght@800&display=swap"><style>${css}\nbody{padding:24px}</style></head><body><article class="slip">${slipHTML(row)}</article></body></html>`;
+      const doc=`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(row.p.name)} ${y}년 ${m}월 급여명세서</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono&family=Nanum+Myeongjo:wght@800&display=swap"><style>${css}\nbody{padding:24px}</style></head><body><article class="slip xl">${slipHTML(row)}</article></body></html>`;
       try{ const url=URL.createObjectURL(new Blob([doc],{type:"text/html;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=`급여명세서_${row.p.name}_${y}-${pad(m)}.html`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast("저장했어요"); }
       catch(e){ if(e&&e.code!=="declined") toast("저장하지 못했어요"); }
     };
