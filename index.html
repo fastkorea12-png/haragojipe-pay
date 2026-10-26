@@ -511,16 +511,16 @@ const holidayHours=h=>h>=15?Math.min(h,40)/40*8:0;
 const BUDGET_DEFAULT=3500000;
 const monthBudget=set=>set.budget??BUDGET_DEFAULT;
 function weekBudget(start,set){let b=0;for(let i=0;i<7;i++){const d=addDays(start,i);b+=monthBudget(set)/new Date(d.getFullYear(),d.getMonth()+1,0).getDate();}return Math.round(b);}
-// 직원 인건비(사장 제외)를 지난 근무·짜 둔 스케줄·스케줄 없는 주(지난 스케줄로 추정)로 나눈다. 주휴는 그 주 토요일 날짜에 붙인다.
+// 사장 포함 인건비(주휴·야간가산은 직원만)를 지난 근무·짜 둔 스케줄·스케줄 없는 주(지난 스케줄로 추정)로 나눈다. 주휴는 그 주 토요일 날짜에 붙인다.
 function monthCost(mk,set){
   const today=ymd(new Date()), out={past:0,plan:0,est:0,estDays:0};
   const add=(d,est,amt)=>{if(est)out.est+=amt;else if(ymd(d)<today)out.past+=amt;else out.plan+=amt;};
-  const cost=(sh,est)=>{const p=staffById(sh.who);if(!p||p.role==="owner")return null;const c=est?shiftCalc(sh.t,set):effCalc(sh,set);return c&&{p,c};};
+  const cost=(sh,est)=>{const p=staffById(sh.who);if(!p)return null;const c=est?shiftCalc(sh.t,set):effCalc(sh,set);return c&&{p,c};};
   monthDays(mk).forEach(d=>{
     const {shifts,est}=dayShifts(d,true);if(est&&shifts.length)out.estDays++;
-    shifts.forEach(sh=>{const x=cost(sh,est);if(x)add(d,est,x.c.hours*x.p.wage+(set.night?x.c.night*x.p.wage*0.5:0));});
+    shifts.forEach(sh=>{const x=cost(sh,est);if(x)add(d,est,x.c.hours*x.p.wage+(set.night&&x.p.role!=="owner"?x.c.night*x.p.wage*0.5:0));});
     if(d.getDay()===6){const per={};
-      for(let i=0;i<7;i++){const ds=dayShifts(addDays(d,i-6),true);ds.shifts.forEach(sh=>{const x=cost(sh,ds.est);if(x)per[x.p.id]=(per[x.p.id]||0)+x.c.hours;});}
+      for(let i=0;i<7;i++){const ds=dayShifts(addDays(d,i-6),true);ds.shifts.forEach(sh=>{const x=cost(sh,ds.est);if(x&&x.p.role!=="owner")per[x.p.id]=(per[x.p.id]||0)+x.c.hours;});}
       Object.entries(per).forEach(([id,h])=>add(d,est,Math.round(holidayHours(h)*staffById(id).wage)));}
   });
   for(const k of ["past","plan","est"])out[k]=Math.round(out[k]);return out;
@@ -531,19 +531,19 @@ function weekTotalsHTML(wk,set){
   let rows="", sumH=0, sumPay=0, sumHol=0, staffCost=0;
   set.staff.filter(p=>tot[p.id]).forEach(p=>{
     const t=tot[p.id], owner=p.role==="owner", pay=Math.round(t.h*p.wage), holH=owner?0:holidayHours(t.h), hol=Math.round(holH*p.wage), night=!owner&&set.night?Math.round(t.n*p.wage*0.5):0;
-    sumH+=t.h; sumPay+=pay; sumHol+=hol; if(!owner) staffCost+=pay+hol+night;
+    sumH+=t.h; sumPay+=pay; sumHol+=hol; staffCost+=pay+hol+night;
     const warn = !owner && t.h>=15 ? '<span class="chip warn">주 15시간 이상 · 주휴 대상</span>' : (!owner && t.h>=13 ? '<span class="chip warn">15시간까지 '+hrs(15-t.h)+'h 남음</span>':"");
     rows+=`<tr><td>${esc(p.name)} ${owner?'<span class="chip owner">사장</span>':""} ${warn}</td><td class="num">${t.d}일</td><td class="num">${hrs(t.h)}</td>${show?`<td class="num">${won(pay)}</td><td>${hol?`주휴 ${won(hol)}원 <small class="muted">(${hrs(holH)}h)</small>`:"–"}</td>`:""}</tr>`;
   });
-  // 예산 비교는 직원 인건비(주급+주휴, 사장 제외)로 한다. 달은 이 주의 토요일이 속한 달.
+  // 예산 비교는 사장 포함 인건비(시급분+주휴+야간가산; 사장은 시급분만)로 한다. 달은 이 주의 토요일이 속한 달.
   let budget="";
   if(show&&rows){
     const wb=weekBudget(start,set), sat=addDays(start,6), mk=ymd(sat).slice(0,7), mb=monthBudget(set);
     const mc=monthCost(mk,set), sched=mc.past+mc.plan, m=sat.getMonth()+1;
     const line=(label,cost,limit)=>`<div class="budget-row ${cost>limit?"over":""}"><span>${label}</span><span class="num">${won(cost)} / ${won(limit)}원 · ${Math.round(cost/limit*100)}%${cost>limit?` · ${won(cost-limit)}원 초과`:` · ${won(limit-cost)}원 남음`}</span></div>`;
-    budget=`<div class="budget">${line("이번 주 직원 인건비 / 주 예산",staffCost,wb)}${line(`${m}월 직원 인건비 (지난 근무 + 짠 스케줄) / 월 예산`,sched,mb)}
+    budget=`<div class="budget">${line("이번 주 인건비(사장 포함) / 주 예산",staffCost,wb)}${line(`${m}월 인건비(사장 포함) (지난 근무 + 짠 스케줄) / 월 예산`,sched,mb)}
       <p class="muted" style="font-size:.8rem;margin:2px 0 0">${m}월: 지난 근무 ${won(mc.past)}원 · 앞으로 짠 스케줄 ${won(mc.plan)}원${mc.estDays?` · 스케줄 없는 ${mc.estDays}일을 지난 스케줄대로 치면 ${won(mc.est)}원 더해 월 예상 ${won(sched+mc.est)}원 (${Math.round((sched+mc.est)/mb*100)}%)`:""}</p>
-      <p class="muted" style="font-size:.78rem;margin:4px 0 0">직원 인건비 = 시급분 + 주휴${set.night?" + 야간가산":""}(사장 제외). 결근은 빼고, 시간 다름은 실제 시간으로 계산해요. 월 예산은 직원·설정에서 바꿔요.${set.holiday?"":" 급여 계산 탭의 주휴수당은 아직 꺼져 있어요(직원·설정)."}</p></div>`;
+      <p class="muted" style="font-size:.78rem;margin:4px 0 0">인건비 = 시급분 + 주휴${set.night?" + 야간가산":""}. 사장은 시급분만 넣고 주휴·야간가산은 뺐어요. 결근은 빼고, 시간 다름은 실제 시간으로 계산해요. 월 예산은 직원·설정에서 바꿔요.${set.holiday?"":" 급여 계산 탭의 주휴수당은 아직 꺼져 있어요(직원·설정)."}</p></div>`;
   }
   return `<div class="card" style="margin-top:14px"><select id="payView" class="totals-view" aria-label="이번 주 합계 보기"><option value="0" ${show?"":"selected"}>이번 주 합계</option><option value="1" ${show?"selected":""}>이번 주 합계(주급 포함)</option></select>
     ${rows?`<div class="scroll"><table><thead><tr><th>이름</th><th>근무일</th><th>시간</th>${show?"<th>주급(세전)</th><th>비고</th>":""}</tr></thead><tbody>${rows}</tbody>
@@ -1036,7 +1036,7 @@ function renderSettings(){
       <div class="grid3">
         <label class="field"><span>상호</span><input id="shop" type="text" value="${esc(set.shop)}"></label>
         <label class="field"><span>최저시급 (원)</span><input id="minWage" type="text" inputmode="numeric" class="num" value="${won(set.minWage)}"></label>
-        <label class="field"><span>월 인건비 예산 (원, 사장 제외)</span><input id="budget" type="text" inputmode="numeric" class="num" value="${won(monthBudget(set))}"></label>
+        <label class="field"><span>월 인건비 예산 (원, 사장 포함)</span><input id="budget" type="text" inputmode="numeric" class="num" value="${won(monthBudget(set))}"></label>
         <label class="field"><span>급여일 (다음 달)</span><input id="payDay" type="number" min="1" max="28" class="num" value="${set.payDay}"></label>
       </div>
       <h3 style="margin:14px 0 6px">4대보험 근로자 부담률 (%)</h3>
