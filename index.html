@@ -149,7 +149,7 @@ td .chip,.chip{display:inline-block;font-size:.7rem;padding:1px 7px;border-radiu
 .slip .log{margin-top:18px}
 .slip .foot{margin-top:18px;font-size:.75rem;color:var(--muted);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 /* 설정 */
-.staffrow{display:grid;grid-template-columns:1.2fr 1fr 1fr 1.3fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.staffrow{display:grid;grid-template-columns:1.2fr .8fr 1fr 1fr 1.3fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .staffrow.head{font-size:.75rem;color:var(--muted);font-weight:600}
 @media (max-width:640px){.staffrow{grid-template-columns:1fr 1fr}.staffrow.head{display:none}}
 .field{display:flex;flex-direction:column;gap:4px;font-size:.85rem}
@@ -870,7 +870,7 @@ const SLIP_MSG=`안녕하세요. 하라고지페입니다.
 지난 달도 함께 고생해 주셔서 감사합니다.`;
 function slipText(row){
   const set=S(), [y,m]=state.month.split("-").map(Number);
-  const L=[`[${set.shop}] ${y}년 ${m}월 급여명세서`,`성명: ${row.p.name}`,`근무: ${row.days}일 / ${hrs(row.hours)}시간`, `지급일: ${payDate(state.month)}`, "",
+  const L=[`[${set.shop}] ${y}년 ${m}월 급여명세서`,`성명: ${row.p.name}${row.p.empNo?" (사번 "+row.p.empNo+")":""}`,`근무: ${row.days}일 / ${hrs(row.hours)}시간`, `지급일: ${payDate(state.month)}`, "",
     "근무 확인된 내역만 반영 (근무함: 예정 시간 / 시간 다름: 실제 시간)", "■ 지급", `기본급 ${won(row.base)}원 (${hrs(row.hours)}h × ${won(row.p.wage)}원)`];
   if(row.nightPay) L.push(`야간근로수당 ${won(row.nightPay)}원 (${hrs(row.night)}h × ${won(row.p.wage)}원 × 0.5)`);
   if(row.hol) L.push(`주휴수당 ${won(row.hol)}원 (${hrs(row.holH)}h × ${won(row.p.wage)}원)`);
@@ -920,11 +920,13 @@ function slipHTML(row){
   return `<h2>급 여 명 세 서</h2><div class="sub">${y}년 ${m}월분 · ${esc(set.shop)}</div>
   <div class="meta">
     <div><span class="nm">성명</span><b class="nm">${esc(row.p.name)}</b></div>
+    <div><span>사번</span><span class="num">${esc(row.p.empNo||"–")}</span></div>
     <div><span>지급일</span><span>${payDate(state.month)}</span></div>
     <div><span>귀속기간</span><span class="num">${y}.${pad(m)}.01 – ${y}.${pad(m)}.${last}</span></div>
     <div><span>시급</span><span class="num">${won(row.p.wage)}원</span></div>
     <div><span>근로일수</span><span class="num">${row.days}일</span></div>
     <div><span>총 근로시간</span><span class="num">${hrs(row.hours)}시간</span></div>
+    <div><span>사업장</span><span>${esc(set.shop)}</span></div>
   </div>
   <div class="cols">
     <div><h3>지급 항목</h3>
@@ -1006,9 +1008,10 @@ function renderSettings(){
   const list=set.staff.filter(p=>!p.archived);
   const archived=set.staff.filter(p=>p.archived);
   let html=`<div class="section"><div class="card"><h2 style="margin-bottom:8px">직원</h2>
-    <div class="staffrow head"><span>이름</span><span>시급 (원)</span><span>구분</span><span>공제</span><span></span></div>
+    <div class="staffrow head"><span>이름</span><span>사번</span><span>시급 (원)</span><span>구분</span><span>공제</span><span></span></div>
     ${list.map(p=>`<div class="staffrow" data-id="${p.id}">
       <input id="n-${p.id}" type="text" data-f="name" value="${esc(p.name)}" aria-label="이름">
+      <input id="no-${p.id}" type="text" data-f="empNo" value="${esc(p.empNo||"")}" placeholder="사번" aria-label="사번">
       <input id="wg-${p.id}" type="text" inputmode="numeric" class="num" data-f="wage" value="${won(p.wage)}" aria-label="시급">
       <select id="r-${p.id}" data-f="role" aria-label="구분"><option value="staff" ${p.role!=="owner"?"selected":""}>직원</option><option value="owner" ${p.role==="owner"?"selected":""}>사장</option></select>
       <select id="dd-${p.id}" data-f="deduct" aria-label="공제" ${p.role==="owner"?"disabled":""}><option value="none" ${(p.deduct||"none")==="none"?"selected":""}>공제 없음</option><option value="3.3" ${p.deduct==="3.3"?"selected":""}>3.3% 원천징수</option><option value="4" ${p.deduct==="4"?"selected":""}>4대보험</option></select>
