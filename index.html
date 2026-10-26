@@ -308,7 +308,7 @@ details.records[open]>summary{margin-bottom:10px}
 .slip .days th,.slip .days td{padding:3px 0;text-align:center;font-family:var(--mono);border:1px solid var(--line);white-space:nowrap;overflow:hidden}
 .slip .days th{background:#e4e4e4;color:var(--fg);font-weight:500;letter-spacing:0}
 .slip .days th[rowspan]{width:34px;font-family:var(--body)}
-.slip .days th small{font-weight:400}.slip .days td.out{background:var(--sunk)}.slip .days .wk{width:64px;white-space:normal}.slip .days td{white-space:normal;font-size:.62rem;line-height:1.3;vertical-align:top;padding:4px 1px}.slip .days .sun{color:var(--sun)}.slip .days .sat{color:var(--sat)}
+.slip .days th small{font-weight:400}.slip .days td.out{background:#f3f3f3;color:#888}.slip .days .wk{width:64px;white-space:normal}.slip .days td{white-space:normal;font-size:.62rem;line-height:1.3;vertical-align:top;padding:4px 1px}.slip .days .sun{color:var(--sun)}.slip .days .sat{color:var(--sat)}
 
 [hidden]{display:none!important}
 #login{position:fixed;inset:0;background:var(--bg);z-index:100;display:grid;place-items:center}#login form{border:2px solid var(--fg);padding:32px;max-width:360px;width:90%}
@@ -895,13 +895,15 @@ function renderSlip(){
 function slipHTML(row){
   const set=S(); const [y,m]=state.month.split("-").map(Number);
   const last=new Date(y,m,0).getDate();
-  const days=monthDays(state.month), byDay={};
-  const byLog={};
-  row.log.forEach(l=>{const k=l.date.getDate();byDay[k]=(byDay[k]||0)+l.c.hours;(byLog[k]=byLog[k]||[]).push(clock(l.c.s)+"-"+clock(l.c.e)+" ("+hrs(l.c.hours)+"H)");});
+  const days=monthDays(state.month);
   const dc=d=>d.getDay()===0||holidayOf(d)?' class="sun"':d.getDay()===6?' class="sat"':'';
+  // 주 전체(일~토) 확인된 근무를 모은다. 달 경계 주는 다른 달 날짜도 포함해 주휴를 판정하고, 주휴는 토요일이 속한 달에 붙는다.
   const weeks=[]; for(let st=addDays(days[0],-days[0].getDay());st<=days[days.length-1];st=addDays(st,7)){
-    const cells=[0,1,2,3,4,5,6].map(i=>{const d=addDays(st,i);return {d,in:d.getMonth()===m-1,cls:dc(d)};});
-    weeks.push({cells,h:cells.reduce((a,c)=>a+(c.in?(byDay[c.d.getDate()]||0):0),0)});}
+    const cells=[0,1,2,3,4,5,6].map(i=>{const d=addDays(st,i),ds=dayShifts(d,false),logs=[];let h=0;
+      ds.shifts.forEach(sh=>{if(sh.who!==row.p.id||ds.est||!["done","changed"].includes(sh.chk))return;const c=effCalc(sh,S());if(c){h+=c.hours;logs.push(clock(c.s)+"-"+clock(c.e)+" ("+hrs(c.hours)+"H)");}});
+      return {d,in:d.getMonth()===m-1,cls:dc(d),logs,h};});
+    const h=cells.reduce((a,c)=>a+c.h,0);
+    weeks.push({cells,h,satIn:cells[6].in});}
   const dedLabel={none:"공제 없음","3.3":"사업소득 3.3% 원천징수","4":"4대보험 근로자 부담분"}[row.p.deduct||"none"];
   return `<h2>급 여 명 세 서</h2><div class="sub">${y}년 ${m}월분 · ${esc(set.shop)}</div>
   <div class="meta">
@@ -928,10 +930,10 @@ function slipHTML(row){
   <div class="days"><h3>근무 기록 <small>(단위: 시간 · 주 단위, 일~토)</small></h3>
     <div class="scroll"><table><tbody>
     ${weeks.map(w=>`<tr>${w.cells.map(c=>`<th${c.cls}>${c.d.getDate()}<br><small>${DOW[c.d.getDay()]}</small></th>`).join("")}<th class="wk">주 합계</th></tr>
-    <tr>${w.cells.map(c=>`<td${c.in?"":' class="out"'}>${c.in?(byLog[c.d.getDate()]||[]).join("<br>"):""}</td>`).join("")}<td class="wk"><b>${hrs(w.h)}H</b>${w.h>=15?`<br><small>주휴 ${hrs(Math.min(w.h,40)/40*8)}h</small>`:""}</td></tr>`).join("")}
+    <tr>${w.cells.map(c=>`<td${c.in?"":' class="out"'}>${c.logs.join("<br>")}</td>`).join("")}<td class="wk"><b>${hrs(w.h)}H</b>${w.h>=15?(w.satIn?`<br><small>주휴 ${hrs(Math.min(w.h,40)/40*8)}H</small>`:`<br><small>주휴는 다음 달</small>`):""}</td></tr>`).join("")}
     <tr><td colspan="7" style="text-align:right">월 합계</td><td class="wk"><b>${hrs(row.hours)}H</b></td></tr>
     </tbody></table></div>
-    <p class="muted" style="font-size:.72rem;margin:6px 0 0">주 합계가 15시간 이상이면 주휴 시간(주 시간 ÷ 40 × 8, 40시간 한도)을 함께 보여 줘요. 달 경계에 걸린 주는 이 달 날짜만 더한 값이에요.</p></div>
+    <p class="muted" style="font-size:.72rem;margin:6px 0 0">주휴수당 계산: 주 합계가 15시간 이상이면 (주 시간 ÷ 40 × 8)시간분 × 시급이에요. 주 시간은 40시간까지만 쳐요. 예) 주 20시간 → 20÷40×8 = 4시간분. 달에 걸친 주는 회색 칸(다른 달 날짜)까지 합쳐 판정하고, 토요일이 속한 달 명세서에 넣어요. 아래 월 합계는 이 달 날짜만 더한 값이에요.</p></div>
   <div class="foot"><span>${esc(set.shop)}</span><span>${dedLabel}</span></div>`;
 }
 
