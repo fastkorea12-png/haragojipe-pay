@@ -933,14 +933,14 @@ function slipHTML(row){
     <tr>${w.cells.map(c=>`<td${c.in?"":' class="out"'}>${c.logs.join("<br>")}</td>`).join("")}<td class="wk"><b>${hrs(w.h)}H</b>${w.h>=15?(w.satIn?`<br><small>주휴 ${hrs(Math.min(w.h,40)/40*8)}H</small>`:`<br><small>주휴는 다음 달</small>`):""}</td></tr>`).join("")}
     <tr><td colspan="7" style="text-align:right">월 합계</td><td class="wk"><b>${hrs(row.hours)}H</b></td></tr>
     </tbody></table></div>
-    <ul class="muted" style="font-size:.72rem;margin:6px 0 0;padding-left:16px;line-height:1.6">
+    ${row.hol?`<ul class="muted" style="font-size:.72rem;margin:6px 0 0;padding-left:16px;line-height:1.6">
       <li>주휴수당 = 주휴 시간 × 시급</li>
       <li>주휴 시간 = 주 근무시간 ÷ 40 × 8 (주 15시간 이상일 때만, 주 40시간 한도)</li>
       <li>예) 주 20시간 → 20 ÷ 40 × 8 = 4시간분</li>
       <li>주 단위 = 일~토, 확인된 근무만 반영</li>
       <li>달 경계 주 = 회색 칸(다른 달 날짜)까지 합산해 판정, 토요일이 속한 달에 지급</li>
       <li>월 합계 = 이 달 날짜만 합산</li>
-    </ul></div>
+    </ul>`:""}</div>
   <div class="foot"><span>${esc(set.shop)}</span><span>${dedLabel}</span></div>`;
 }
 
