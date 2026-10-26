@@ -304,11 +304,11 @@ details.records[open]>summary{margin-bottom:10px}
 /* 명세서 날짜 칸 */
 .slip .days{margin-top:18px}
 .slip .days h3 small{font-weight:400;letter-spacing:0}
-.slip .days table{width:100%;min-width:600px;table-layout:fixed;font-size:.72rem}
+.slip .days table{width:100%;min-width:360px;table-layout:fixed;font-size:.72rem}
 .slip .days th,.slip .days td{padding:3px 0;text-align:center;font-family:var(--mono);border:1px solid var(--line);white-space:nowrap;overflow:hidden}
 .slip .days th{background:var(--sunk);color:var(--fg);font-weight:500;letter-spacing:0}
 .slip .days th[rowspan]{width:34px;font-family:var(--body)}
-.slip .days .sun{color:var(--sun)}.slip .days .sat{color:var(--sat)}
+.slip .days th small{font-weight:400}.slip .days td.out{background:var(--sunk)}.slip .days .wk{width:64px;white-space:normal}.slip .days .sun{color:var(--sun)}.slip .days .sat{color:var(--sat)}
 
 [hidden]{display:none!important}
 #login{position:fixed;inset:0;background:var(--bg);z-index:100;display:grid;place-items:center}#login form{border:2px solid var(--fg);padding:32px;max-width:360px;width:90%}
@@ -898,6 +898,9 @@ function slipHTML(row){
   const days=monthDays(state.month), byDay={};
   row.log.forEach(l=>{const k=l.date.getDate();byDay[k]=(byDay[k]||0)+l.c.hours;});
   const dc=d=>d.getDay()===0||holidayOf(d)?' class="sun"':d.getDay()===6?' class="sat"':'';
+  const weeks=[]; for(let st=addDays(days[0],-days[0].getDay());st<=days[days.length-1];st=addDays(st,7)){
+    const cells=[0,1,2,3,4,5,6].map(i=>{const d=addDays(st,i);return {d,in:d.getMonth()===m-1,cls:dc(d)};});
+    weeks.push({cells,h:cells.reduce((a,c)=>a+(c.in?(byDay[c.d.getDate()]||0):0),0)});}
   const dedLabel={none:"공제 없음","3.3":"사업소득 3.3% 원천징수","4":"4대보험 근로자 부담분"}[row.p.deduct||"none"];
   return `<h2>급 여 명 세 서</h2><div class="sub">${y}년 ${m}월분 · ${esc(set.shop)}</div>
   <div class="meta">
@@ -908,12 +911,13 @@ function slipHTML(row){
     <div><span>근로일수</span><span class="num">${row.days}일</span></div>
     <div><span>총 근로시간</span><span class="num">${hrs(row.hours)}시간</span></div>
   </div>
-  <div class="days"><h3>근무 기록 <small>(단위: 시간)</small></h3>
+  <div class="days"><h3>근무 기록 <small>(단위: 시간 · 주 단위, 일~토)</small></h3>
     <div class="scroll"><table><tbody>
-    <tr>${days.map(d=>`<th${dc(d)}>${d.getDate()}</th>`).join("")}<th rowspan="2">합</th></tr>
-    <tr>${days.map(d=>`<th${dc(d)}>${DOW[d.getDay()]}</th>`).join("")}</tr>
-    <tr>${days.map(d=>`<td>${byDay[d.getDate()]?hrs(byDay[d.getDate()]):""}</td>`).join("")}<td><b>${hrs(row.hours)}</b></td></tr>
-    </tbody></table></div></div>
+    ${weeks.map(w=>`<tr>${w.cells.map(c=>`<th${c.cls}>${c.d.getDate()}<br><small>${DOW[c.d.getDay()]}</small></th>`).join("")}<th rowspan="2" class="wk">주 합계</th></tr>
+    <tr>${w.cells.map(c=>`<td${c.in?"":' class="out"'}>${c.in&&byDay[c.d.getDate()]?hrs(byDay[c.d.getDate()]):""}</td>`).join("")}<td class="wk"><b>${hrs(w.h)}</b>${w.h>=15?`<br><small>주휴 ${hrs(Math.min(w.h,40)/40*8)}h</small>`:""}</td></tr>`).join("")}
+    <tr><td colspan="7" style="text-align:right">월 합계</td><td class="wk"><b>${hrs(row.hours)}</b></td></tr>
+    </tbody></table></div>
+    <p class="muted" style="font-size:.72rem;margin:6px 0 0">주 합계가 15시간 이상이면 주휴 시간(주 시간 ÷ 40 × 8, 40시간 한도)을 함께 보여 줘요. 달 경계에 걸린 주는 이 달 날짜만 더한 값이에요.</p></div>
   <div class="cols">
     <div><h3>지급 항목</h3>
       <div class="row"><span>기본급<small>${hrs(row.hours)}h × ${won(row.p.wage)}원</small></span><span class="num">${won(row.base)}</span></div>
