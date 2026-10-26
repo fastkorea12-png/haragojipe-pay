@@ -306,7 +306,7 @@ details.records[open]>summary{margin-bottom:10px}
 .slip .days h3 small{font-weight:400;letter-spacing:0}
 .slip .days table{width:100%;min-width:520px;table-layout:fixed;font-size:.72rem}
 .slip .days th,.slip .days td{padding:3px 0;text-align:center;font-family:var(--mono);border:1px solid var(--line);white-space:nowrap;overflow:hidden}
-.slip .days th{background:var(--sunk);color:var(--fg);font-weight:500;letter-spacing:0}
+.slip .days th{background:#e4e4e4;color:var(--fg);font-weight:500;letter-spacing:0}
 .slip .days th[rowspan]{width:34px;font-family:var(--body)}
 .slip .days th small{font-weight:400}.slip .days td.out{background:var(--sunk)}.slip .days .wk{width:64px;white-space:normal}.slip .days td{white-space:normal;font-size:.62rem;line-height:1.3;vertical-align:top;padding:4px 1px}.slip .days .sun{color:var(--sun)}.slip .days .sat{color:var(--sat)}
 
@@ -912,13 +912,6 @@ function slipHTML(row){
     <div><span>근로일수</span><span class="num">${row.days}일</span></div>
     <div><span>총 근로시간</span><span class="num">${hrs(row.hours)}시간</span></div>
   </div>
-  <div class="days"><h3>근무 기록 <small>(단위: 시간 · 주 단위, 일~토)</small></h3>
-    <div class="scroll"><table><tbody>
-    ${weeks.map(w=>`<tr>${w.cells.map(c=>`<th${c.cls}>${c.d.getDate()}<br><small>${DOW[c.d.getDay()]}</small></th>`).join("")}<th class="wk">주 합계</th></tr>
-    <tr>${w.cells.map(c=>`<td${c.in?"":' class="out"'}>${c.in?(byLog[c.d.getDate()]||[]).join("<br>"):""}</td>`).join("")}<td class="wk"><b>${hrs(w.h)}H</b>${w.h>=15?`<br><small>주휴 ${hrs(Math.min(w.h,40)/40*8)}h</small>`:""}</td></tr>`).join("")}
-    <tr><td colspan="7" style="text-align:right">월 합계</td><td class="wk"><b>${hrs(row.hours)}H</b></td></tr>
-    </tbody></table></div>
-    <p class="muted" style="font-size:.72rem;margin:6px 0 0">주 합계가 15시간 이상이면 주휴 시간(주 시간 ÷ 40 × 8, 40시간 한도)을 함께 보여 줘요. 달 경계에 걸린 주는 이 달 날짜만 더한 값이에요.</p></div>
   <div class="cols">
     <div><h3>지급 항목</h3>
       <div class="row"><span>기본급<small>${hrs(row.hours)}h × ${won(row.p.wage)}원</small></span><span class="num">${won(row.base)}</span></div>
@@ -932,10 +925,13 @@ function slipHTML(row){
     </div>
   </div>
   <div class="net"><b>실지급액</b><span class="v">${won(row.net)}원</span></div>
-  <div class="log"><h3 style="font-size:.8rem;letter-spacing:.1em;color:var(--muted);border-bottom:2px solid var(--fg);padding-bottom:4px">근무 내역</h3>
-    <div class="scroll"><table><thead><tr><th>날짜</th><th>출근</th><th>퇴근</th><th>근로시간</th></tr></thead><tbody>
-    ${row.log.map(l=>`<tr><td>${l.date.getMonth()+1}/${l.date.getDate()} (${DOW[l.date.getDay()]})</td><td class="num">${clock(l.c.s)}</td><td class="num">${clock(l.c.e)}</td><td class="num">${hrs(l.c.hours)}</td></tr>`).join("")}
-    </tbody></table></div></div>
+  <div class="days"><h3>근무 기록 <small>(단위: 시간 · 주 단위, 일~토)</small></h3>
+    <div class="scroll"><table><tbody>
+    ${weeks.map(w=>`<tr>${w.cells.map(c=>`<th${c.cls}>${c.d.getDate()}<br><small>${DOW[c.d.getDay()]}</small></th>`).join("")}<th class="wk">주 합계</th></tr>
+    <tr>${w.cells.map(c=>`<td${c.in?"":' class="out"'}>${c.in?(byLog[c.d.getDate()]||[]).join("<br>"):""}</td>`).join("")}<td class="wk"><b>${hrs(w.h)}H</b>${w.h>=15?`<br><small>주휴 ${hrs(Math.min(w.h,40)/40*8)}h</small>`:""}</td></tr>`).join("")}
+    <tr><td colspan="7" style="text-align:right">월 합계</td><td class="wk"><b>${hrs(row.hours)}H</b></td></tr>
+    </tbody></table></div>
+    <p class="muted" style="font-size:.72rem;margin:6px 0 0">주 합계가 15시간 이상이면 주휴 시간(주 시간 ÷ 40 × 8, 40시간 한도)을 함께 보여 줘요. 달 경계에 걸린 주는 이 달 날짜만 더한 값이에요.</p></div>
   <div class="foot"><span>${esc(set.shop)}</span><span>${dedLabel}</span></div>`;
 }
 
