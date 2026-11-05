@@ -147,6 +147,28 @@ td .chip,.chip{display:inline-block;font-size:.7rem;padding:1px 7px;border-radiu
 .slip .net{display:flex;justify-content:space-between;align-items:baseline;margin-top:18px;padding:12px 4px;border-top:2px solid var(--fg);border-bottom:2px solid var(--fg)}
 .slip .net .v{font-family:var(--mono);font-size:1.5rem;font-weight:500;color:var(--wine)}
 .slip .log{margin-top:18px}
+.cl-doc{max-width:1100px}
+.cl-doc h2{letter-spacing:.05em}
+.cl-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start;margin-top:10px}
+@media (max-width:820px){.cl-grid{grid-template-columns:1fr}}
+table.cl{width:100%;border-collapse:collapse;font-size:.86rem}
+table.cl th,table.cl td{border:1px solid var(--ink,var(--line));padding:5px 8px;vertical-align:middle}
+table.cl thead th{background:#ededed;text-align:center;font-weight:600}
+table.cl td.r{text-align:right;white-space:nowrap}
+table.cl td:nth-child(2){text-align:right;width:150px}
+table.cl tr.grp td{background:#f6f6f6;font-weight:600}
+table.cl tr.sub td{background:#f6f6f6}
+table.cl tfoot td{font-weight:700;border-top:2px solid var(--ink,var(--line))}
+table.cl .ind{padding-left:14px;display:inline-block}
+table.cl input.cl-in{width:130px;text-align:right;padding:3px 6px}
+table.cl input.cl-name{width:120px;padding:3px 6px}
+table.cl select.cl-pay{padding:2px 4px;font-size:.8rem}
+@media (max-width:600px){.cl-doc{padding:14px 10px}table.cl{display:block;overflow-x:auto;font-size:.8rem}table.cl td:nth-child(2){width:auto}table.cl input.cl-in{width:96px}table.cl input.cl-name{width:84px}}
+.cl-net{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 4px;padding:12px 8px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.cl-net .v{font-family:var(--mono);font-size:1.5rem;color:var(--wine)}
+.allow summary{cursor:pointer}
+.allow-row{display:grid;grid-template-columns:minmax(0,1.2fr) 120px minmax(0,2fr) auto;gap:6px;margin-bottom:6px}
+@media (max-width:600px){.allow-row{grid-template-columns:1fr 110px}.allow-row input[data-f="memo"]{grid-column:1/-1}}
 .slip .foot{margin-top:18px;font-size:.75rem;color:var(--muted);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 /* 설정 */
 .staffrow{display:grid;grid-template-columns:1.2fr .8fr 1fr 1fr 1.3fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
@@ -326,6 +348,7 @@ details.records[open]>summary{margin-bottom:10px}
         <button role="tab" data-tab="records" aria-selected="false">근무 기록</button>
         <button role="tab" data-tab="payroll" aria-selected="false">급여 계산</button>
         <button role="tab" data-tab="slip" aria-selected="false">급여명세서</button>
+        <button role="tab" data-tab="closing" aria-selected="false">월간 결산</button>
         <button role="tab" data-tab="settings" aria-selected="false">직원·설정</button>
       </nav>
     </div>
@@ -453,7 +476,7 @@ function render(){
   noteObservers.forEach(o=>o.disconnect());noteObservers=[];
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.tab===state.tab)));
   if(!state.loaded.settings || !state.loaded.weeks){ main.innerHTML='<div class="empty">불러오는 중…</div>'; return; }
-  ({schedule:renderSchedule, records:renderRecords, payroll:renderPayroll, slip:renderSlip, settings:renderSettings})[state.tab]();
+  ({schedule:renderSchedule, records:renderRecords, payroll:renderPayroll, slip:renderSlip, closing:renderClosing, settings:renderSettings})[state.tab]();
 }
 main.addEventListener("focusout",()=>setTimeout(()=>{ if(renderQueued) render(); },0));
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;try{localStorage.setItem("hgp.tab",state.tab)}catch(e){};render();});
@@ -775,6 +798,8 @@ function deduction(p, gross){
   }
   return {items:[],total:0};
 }
+// 임의 수당: settings.allowances["YYYY-MM"][직원id] = [{name, amt, memo}] (지급총액에 더하고 공제도 그 위에서 계산)
+function allowancesOf(mk,id){ return ((S().allowances||{})[mk]||{})[id]||[]; }
 function computeMonth(mk, project, confirmedOnly=false, withHoliday){
   const set=S(), holidayOn=withHoliday??set.holiday, days=monthDays(mk), res={}, todayK=ymd(new Date()); let estDays=0, filledDays=0, unchecked=0, absent=0;
   const get=id=>res[id]||(res[id]={hours:0,night:0,days:new Set(),log:[],weeks:{}});
@@ -796,15 +821,16 @@ function computeMonth(mk, project, confirmedOnly=false, withHoliday){
       holidayWeeks.push({start:st, per});
     });
   }
-  const rows=set.staff.filter(p=>res[p.id]).map(p=>{
-    const r=res[p.id], owner=p.role==="owner";
+  const rows=set.staff.filter(p=>res[p.id]||allowancesOf(mk,p.id).some(a=>a.amt)).map(p=>{
+    const r=get(p.id), owner=p.role==="owner";
     const base=Math.round(r.hours*p.wage);
     const nightPay= !owner && set.night ? Math.round(r.night*p.wage*0.5) : 0;
     let hol=0, holH=0;
     if(!owner && holidayOn) holidayWeeks.forEach(w=>{const h=w.per[p.id]||0; if(h>=15){const hh=Math.min(h,40)/40*8; holH+=hh; hol+=Math.round(hh*p.wage);}});
-    const gross=base+nightPay+hol;
+    const extras=allowancesOf(mk,p.id).filter(a=>a.amt), extra=extras.reduce((a,x)=>a+x.amt,0);
+    const gross=base+nightPay+hol+extra;
     const ded= owner? {items:[],total:0} : deduction(p,gross);
-    return {p, owner, hours:r.hours, night:r.night, days:r.days.size, log:r.log, base, nightPay, hol, holH, gross, ded, net:gross-ded.total, est:r.log.some(l=>l.est)};
+    return {p, owner, hours:r.hours, night:r.night, days:r.days.size, log:r.log, base, nightPay, hol, holH, extras, extra, gross, ded, net:gross-ded.total, est:r.log.some(l=>l.est)};
   });
   return {rows, estDays, filledDays, total:days.length, unchecked, absent};
 }
@@ -834,13 +860,13 @@ function renderPayroll(){
   </div>`;
   const tr=r=>`<tr><td>${esc(r.p.name)} ${r.owner?'<span class="chip owner">사장</span>':""} ${r.est?'<span class="chip est">예상 포함</span>':""}</td>
     <td class="num">${r.days}</td><td class="num">${hrs(r.hours)}</td><td class="num">${hrs(confirmedRow(r)?.hours||0)}</td><td class="num">${won(confirmedRow(r)?.net||0)}</td><td class="num">${won(r.net-(confirmedRow(r)?.net||0))}</td><td class="num">${won(r.p.wage)}</td><td class="num">${won(r.base)}</td>
-    <td class="num">${r.nightPay?won(r.nightPay):"–"}</td><td class="num">${r.hol?won(r.hol):"–"}</td><td class="num"><b>${won(r.gross)}</b></td>
+    <td class="num">${r.nightPay?won(r.nightPay):"–"}</td><td class="num">${r.hol?won(r.hol):"–"}</td><td class="num">${r.extra?won(r.extra):"–"}</td><td class="num"><b>${won(r.gross)}</b></td>
     <td class="num">${r.ded.total?"−"+won(r.ded.total):"–"}</td><td class="num"><b>${won(r.net)}</b></td>
     <td>${r.owner?"":`<button class="btn small" data-slip="${r.p.id}">명세서</button>`}</td></tr>`;
   html+=`<div class="card"><div class="scroll"><table>
-    <thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>확인된 시간</th><th>명세서 실지급</th><th>실지급 차이</th><th>시급</th><th>기본급</th><th>야간가산</th><th>주휴</th><th>지급총액</th><th>공제</th><th>실지급</th><th></th></tr></thead>
+    <thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>확인된 시간</th><th>명세서 실지급</th><th>실지급 차이</th><th>시급</th><th>기본급</th><th>야간가산</th><th>주휴</th><th>수당</th><th>지급총액</th><th>공제</th><th>실지급</th><th></th></tr></thead>
     <tbody>${staffRows.map(tr).join("")}${ownerRows.map(tr).join("")}</tbody>
-    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(R.rows.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${hrs(confirmed.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${won(confirmed.reduce((a,r)=>a+r.net,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0)-confirmed.reduce((a,r)=>a+r.net,0))}</td><td></td><td class="num">${won(R.rows.reduce((a,r)=>a+r.base,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.nightPay,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.hol,0))}</td><td class="num">${won(staffCost+ownerCost)}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.ded.total,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0))}</td><td></td></tr></tfoot>
+    <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(R.rows.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${hrs(confirmed.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${won(confirmed.reduce((a,r)=>a+r.net,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0)-confirmed.reduce((a,r)=>a+r.net,0))}</td><td></td><td class="num">${won(R.rows.reduce((a,r)=>a+r.base,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.nightPay,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.hol,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.extra,0))}</td><td class="num">${won(staffCost+ownerCost)}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.ded.total,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0))}</td><td></td></tr></tfoot>
   </table></div>
   <p class="muted" style="font-size:.8rem;margin:10px 0 0">야간가산 ${set.night?"켜짐":"꺼짐"} · 주휴수당 ${set.holiday?"켜짐":"꺼짐"} · 휴게시간 차감 ${set.breakDeduct?"켜짐":"꺼짐"} · 바꾸려면 <button class="btn small" data-go="settings">직원·설정</button></p></div>`;
   main.innerHTML=html;
@@ -874,6 +900,7 @@ function slipText(row){
     "근무 확인된 내역만 반영 (근무함: 예정 시간 / 시간 다름: 실제 시간)", "■ 지급", `기본급 ${won(row.base)}원 (${hrs(row.hours)}h × ${won(row.p.wage)}원)`];
   if(row.nightPay) L.push(`야간근로수당 ${won(row.nightPay)}원 (${hrs(row.night)}h × ${won(row.p.wage)}원 × 0.5)`);
   if(row.hol) L.push(`주휴수당 ${won(row.hol)}원 (${hrs(row.holH)}h × ${won(row.p.wage)}원)`);
+  row.extras.forEach(a=>L.push(`${a.name||"수당"} ${won(a.amt)}원${a.memo?" ("+a.memo+")":""}`));
   L.push(`지급총액 ${won(row.gross)}원`);
   if(row.ded.items.length){L.push("","■ 공제"); row.ded.items.forEach(([k,v])=>L.push(`${k} ${won(v)}원`)); L.push(`공제합계 ${won(row.ded.total)}원`);}
   L.push("",`실지급액 ${won(row.net)}원`,"","■ 근무 내역");
@@ -900,9 +927,35 @@ function renderSlip(){
   <p class="muted" style="margin:-6px 0 12px;font-size:.82rem">명세서는 근무 확인된 근무만 반영해요. 근무함은 예정 시간, 시간 다름은 실제 시간으로 계산하며 미확인·결근은 제외해요.</p>`;
   const unconfirmed=monthDays(state.month).reduce((n,d)=>n+(state.weeks[weekStartKey(d)]?.days[d.getDay()]?.shifts||[]).filter(sh=>sh.who===state.slipStaff&&!sh.chk).length,0);
   if(unconfirmed)html+=`<div class="banner">확인 안 된 근무 ${unconfirmed}건은 명세서에 들어가지 않았어요</div>`;
-  if(!row){ main.innerHTML=html+`<div class="empty">${y}년 ${m}월에 이 직원의 확인된 근무 기록이 없어요.</div>`; bindSlip(); return; }
+  html+=allowanceEditorHTML();
+  if(!row){ main.innerHTML=html+`<div class="empty">${y}년 ${m}월에 이 직원의 확인된 근무 기록이 없어요.</div>`; bindSlip(); bindAllowance(); return; }
   html+=`<article class="slip" id="slipDoc">${slipHTML(row)}</article>`;
-  main.innerHTML=html; bindSlip(row);
+  main.innerHTML=html; bindSlip(row); bindAllowance();
+}
+function allowanceEditorHTML(){
+  const list=allowancesOf(state.month,state.slipStaff), name=staffById(state.slipStaff)?.name||"";
+  return `<details class="card allow" ${list.length?"open":""} style="margin-bottom:14px"><summary><b>수당 직접 입력</b> <span class="muted">${esc(name)} · ${list.length?list.length+"건 · "+won(list.reduce((a,x)=>a+(x.amt||0),0))+"원":"없음"}</span></summary>
+    <p class="muted" style="font-size:.8rem;margin:6px 0 10px">교육수당·식대·보너스처럼 시간 계산 밖의 금액을 넣어요. 지급총액에 더해지고, 3.3% 공제도 더한 금액 기준으로 다시 계산돼요. 이 달 이 직원에게만 적용돼요.</p>
+    ${list.map((a,i)=>`<div class="allow-row"><input data-al="${i}" data-f="name" value="${esc(a.name)}" placeholder="항목 (예: 교육수당)" aria-label="수당 항목"><input data-al="${i}" data-f="amt" class="num" inputmode="numeric" value="${a.amt?won(a.amt):""}" placeholder="금액" aria-label="금액"><input data-al="${i}" data-f="memo" value="${esc(a.memo||"")}" placeholder="설명 (명세서에 작게 표시, 선택)" aria-label="설명"><button class="btn small" data-aldel="${i}">삭제</button></div>`).join("")}
+    <button class="btn small" id="alAdd">+ 수당 추가</button></details>`;
+}
+function setAllowances(list){
+  const set=state.settings; set.allowances={...(set.allowances||{})};
+  const mon={...(set.allowances[state.month]||{})}; if(list.length) mon[state.slipStaff]=list; else delete mon[state.slipStaff];
+  if(Object.keys(mon).length) set.allowances[state.month]=mon; else delete set.allowances[state.month];
+  saveSettings();
+}
+function bindAllowance(){
+  const box=main.querySelector(".allow"); if(!box||!state.slipStaff) return;
+  const cur=()=>allowancesOf(state.month,state.slipStaff).map(a=>({...a}));
+  box.querySelector("#alAdd").onclick=()=>{setAllowances([...cur(),{name:"",amt:0,memo:""}]);render();setTimeout(()=>{const l=[...main.querySelectorAll('.allow [data-f="name"]')].at(-1);l&&l.focus();},0);};
+  box.querySelectorAll("[data-aldel]").forEach(b=>b.onclick=()=>{const l=cur();l.splice(+b.dataset.aldel,1);setAllowances(l);render();});
+  box.querySelectorAll("[data-al]").forEach(inp=>{
+    inp.addEventListener("change",()=>{const l=cur(),a=l[+inp.dataset.al]; if(!a) return;
+      a[inp.dataset.f]= inp.dataset.f==="amt"? Number(inp.value.replace(/[^\d]/g,""))||0 : inp.value.trim();
+      setAllowances(l); render();});
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter") inp.blur();});
+  });
 }
 function slipHTML(row){
   const set=S(); const [y,m]=state.month.split("-").map(Number);
@@ -933,6 +986,7 @@ function slipHTML(row){
       <div class="row"><span>기본급<small>${hrs(row.hours)}h × ${won(row.p.wage)}원</small></span><span class="num">${won(row.base)}</span></div>
       ${row.nightPay?`<div class="row"><span>야간근로수당<small>${hrs(row.night)}h × ${won(row.p.wage)}원 × 0.5</small></span><span class="num">${won(row.nightPay)}</span></div>`:""}
       ${row.hol?`<div class="row"><span>주휴수당<small>${hrs(row.holH)}h × ${won(row.p.wage)}원</small></span><span class="num">${won(row.hol)}</span></div>`:""}
+      ${row.extras.map(a=>`<div class="row"><span>${esc(a.name||"수당")}${a.memo?`<small>${esc(a.memo)}</small>`:""}</span><span class="num">${won(a.amt)}</span></div>`).join("")}
       <div class="row"><b>지급총액</b><b class="num">${won(row.gross)}</b></div>
     </div>
     <div><h3>공제 항목</h3>
@@ -999,6 +1053,138 @@ function bindSlip(row){
       try{ const url=URL.createObjectURL(new Blob([doc],{type:"text/html;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=`급여명세서_${row.p.name}_${y}-${pad(m)}.html`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast("저장했어요"); }
       catch(e){ if(e&&e.code!=="declined") toast("저장하지 못했어요"); }
     };
+}
+
+/* ---------- 월간 결산 (월간 보고서 시트 '금월' 탭 양식) ---------- */
+// 인건비 = 명세서 실지급액(시트와 같은 기준), 원천징수 = 인건비 소계 × 3.3%(시트 수식 그대로)
+// settings.closing["YYYY-MM"] = {material:{amt,payer}, liquor:[{name,amt}], fixed:[{name,amt,payer}], other:[{name,amt,payer}], menuSales, liquorSales, labor:{직원id:금액}}
+// settings.closingCfg = {feeRate, taxRate, partners:[{name,pct}]} · 동업자 몫 나머지는 적립금
+const CL_LIQUOR=["비네센","케이앤제이","비케이","피코무역","뱅쿱","태정","한빛","유와인"];
+const CL_FIXED=["월세","외식업 회비","코스트코","차량","전기세","수도세","인터넷","정수기"];
+function clCfg(){const c=S().closingCfg||{};return {feeRate:c.feeRate??2, taxRate:c.taxRate??3.3, partners:c.partners||[]};}
+function clPrevKey(mk){const ks=Object.keys(S().closing||{}).filter(k=>k<mk).sort();return ks.at(-1);}
+function clMonth(mk){
+  const c=(S().closing||{})[mk]; if(c) return c;
+  const pv=(S().closing||{})[clPrevKey(mk)];
+  const strip=(l,dflt)=>(l||dflt).map(x=>typeof x==="string"?{name:x,amt:0,payer:""}:{name:x.name,amt:0,payer:x.payer||""});
+  return {material:{amt:0,payer:pv?.material?.payer||""}, liquor:strip(pv?.liquor,CL_LIQUOR), fixed:strip(pv?.fixed,CL_FIXED), other:strip(pv?.other,[]), menuSales:0, liquorSales:0, labor:{}, fresh:true};
+}
+function clCompute(mk){
+  const set=S(), cfg=clCfg(), c=clMonth(mk), sales=Number(set.sales[mk]||0);
+  const R=computeMonth(mk,false,true);
+  const labor=set.staff.filter(p=>R.rows.find(r=>r.p.id===p.id)||(c.labor&&c.labor[p.id]!=null)).map(p=>{const r=R.rows.find(x=>x.p.id===p.id),auto=r?r.net:0,ov=c.labor&&c.labor[p.id];return {p,auto,amt:ov!=null?ov:auto,ov:ov!=null};});
+  const laborSum=labor.reduce((a,x)=>a+x.amt,0);
+  const fee=Math.round(sales*cfg.feeRate/100), tax=Math.round(laborSum*cfg.taxRate/100);
+  const sum=l=>l.reduce((a,x)=>a+(x.amt||0),0);
+  const liquorSum=sum(c.liquor), fixedSum=sum(c.fixed), otherSum=sum(c.other), material=c.material.amt||0;
+  const expense=material+laborSum+fee+liquorSum+fixedSum+tax+otherSum, net=sales-expense;
+  const pays=[{amt:material,payer:c.material.payer},...c.fixed,...c.other];
+  const partners=cfg.partners.map((pt,i)=>{const share=Math.round(net*pt.pct/100), paid=pays.filter(x=>String(x.payer)===String(i)).reduce((a,x)=>a+(x.amt||0),0);
+    const what=[["재료비",c.material],...c.fixed.map(x=>[x.name,x]),...c.other.map(x=>[x.name,x])].filter(([,x])=>String(x.payer)===String(i)&&x.amt).map(([n])=>n);
+    return {...pt,share,paid,total:share+paid,what};});
+  const reservePct=100-cfg.partners.reduce((a,p)=>a+(+p.pct||0),0), reserve=Math.round(net*reservePct/100);
+  const unchecked=R.unchecked;
+  return {set,cfg,c,sales,labor,laborSum,fee,tax,liquorSum,fixedSum,otherSum,material,expense,net,partners,reservePct,reserve,unchecked};
+}
+function clSave(mk,c){const set=state.settings; const x={...c}; delete x.fresh; set.closing={...(set.closing||{}),[mk]:x}; saveSettings();}
+function clPct(x,sales){return sales?(x/sales*100).toFixed(2)+"%":"–";}
+function closingHTML(K,mk,edit){
+  const [y,m]=mk.split("-").map(Number), w=v=>v?"₩"+won(v):"", inp=(path,v,ph="")=>edit?`<input class="num cl-in" data-cl="${path}" inputmode="numeric" value="${v?won(v):""}" placeholder="${ph}">`:`<span class="num">${w(v)}</span>`;
+  const nameIn=(path,v)=>edit?`<input class="cl-name" data-cln="${path}" value="${esc(v)}" placeholder="항목">`:esc(v);
+  const payerSel=(path,v)=>edit&&K.cfg.partners.length?`<select class="cl-pay" data-clp="${path}" aria-label="낸 사람"><option value="">매장</option>${K.cfg.partners.map((p,i)=>`<option value="${i}" ${String(v)===String(i)?"selected":""}>${esc(p.name||"동업자 "+(i+1))}</option>`).join("")}</select>`:(v!==""&&v!=null&&K.cfg.partners[v]?`<small class="muted">${esc(K.cfg.partners[v].name)} 냄</small>`:"");
+  const del=(g,i)=>edit?`<button class="btn small" data-cldel="${g}.${i}" aria-label="삭제">×</button>`:"";
+  const row=(label,amt,note="",cls="")=>`<tr class="${cls}"><td>${label}</td><td class="r">${amt}</td><td>${note}</td></tr>`;
+  let ex="";
+  ex+=row("재료비",inp("material.amt",K.material),payerSel("material.payer",K.c.material.payer));
+  ex+=`<tr class="grp"><td colspan="3">인건비 <small class="muted">${edit?"근무 확인된 실지급액(수당 포함, 3.3% 뗀 금액) · 칸에 직접 쓰면 그 값 사용":""}</small></td></tr>`;
+  K.labor.forEach(l=>ex+=row(`<span class="ind">${esc(l.p.name)}</span>`,edit?`<input class="num cl-in" data-cll="${l.p.id}" inputmode="numeric" value="${l.ov?won(l.amt):""}" placeholder="${won(l.auto)}">`:`<span class="num">${w(l.amt)}</span>`,l.ov&&edit?`<small class="muted">자동 ${won(l.auto)}</small>`:""));
+  ex+=row("<b>인건비 소계</b>",`<b class="num">${w(K.laborSum)}</b>`,"","sub");
+  ex+=row("카드사 수수료",`<span class="num">${w(K.fee)}</span>`,`매출의 ${K.cfg.feeRate}%`);
+  ex+=`<tr class="grp"><td colspan="3">주대 ${edit?`<button class="btn small" data-cladd="liquor">+ 수입사</button>`:""}</td></tr>`;
+  K.c.liquor.forEach((x,i)=>ex+=row(`<span class="ind">${nameIn("liquor."+i+".name",x.name)}${edit?"":" 정산"}</span>`,inp("liquor."+i+".amt",x.amt),del("liquor",i)));
+  ex+=row("<b>주대 소계</b>",`<b class="num">${w(K.liquorSum)}</b>`,"","sub");
+  ex+=`<tr class="grp"><td colspan="3">고정비·기타 지출 ${edit?`<button class="btn small" data-cladd="fixed">+ 항목</button>`:""}</td></tr>`;
+  K.c.fixed.forEach((x,i)=>ex+=row(`<span class="ind">${nameIn("fixed."+i+".name",x.name)}</span>`,inp("fixed."+i+".amt",x.amt),payerSel("fixed."+i+".payer",x.payer)+del("fixed",i)));
+  ex+=row("원천징수",`<span class="num">${w(K.tax)}</span>`,`인건비 소계의 ${K.cfg.taxRate}%`);
+  ex+=`<tr class="grp"><td colspan="3">기타 ${edit?`<button class="btn small" data-cladd="other">+ 항목</button> <small class="muted">회식·택시비·부가세 등</small>`:""}</td></tr>`;
+  K.c.other.forEach((x,i)=>ex+=row(`<span class="ind">${nameIn("other."+i+".name",x.name)}</span>`,inp("other."+i+".amt",x.amt),payerSel("other."+i+".payer",x.payer)+del("other",i)));
+  const sum=[["주대",K.liquorSum],["급여",K.laborSum],["재료비",K.material],["월세",(K.c.fixed.find(x=>x.name==="월세")||{}).amt||0],["3.3% 원천 징수",K.tax]];
+  return `<h2>${esc(K.set.shop)} 월간 보고서(${pad(m)}월분)</h2><div class="sub">${y}년 ${m}월 · 근무 기록 기준 자동 계산 + 직접 입력</div>
+  <div class="cl-grid">
+   <table class="cl"><thead><tr><th colspan="3">수입</th></tr><tr><th>항목</th><th>금액</th><th>비고</th></tr></thead><tbody>
+    ${row("매출",edit?`<input class="num cl-in" id="clSales" inputmode="numeric" value="${K.sales?won(K.sales):""}" placeholder="POS 매출">`:`<span class="num">${w(K.sales)}</span>`,"급여 계산 탭 매출과 같은 값")}
+    ${row("<small>메뉴 매출</small>",inp("menuSales",K.c.menuSales,"선택"),K.c.menuSales?`<small>재료비율 ${clPct(K.material,K.c.menuSales)}</small>`:"")}
+    ${row("<small>주대 매출</small>",inp("liquorSales",K.c.liquorSales,"선택"),K.c.liquorSales?`<small>주대 비율 ${clPct(K.liquorSum,K.c.liquorSales)}</small>`:"")}
+   </tbody><tfoot>${row("합계",`<span class="num">${w(K.sales)}</span>`)}</tfoot></table>
+   <table class="cl"><thead><tr><th colspan="3">지출</th></tr><tr><th>항목</th><th>금액</th><th>비고</th></tr></thead><tbody>${ex}</tbody>
+   <tfoot>${row("합계",`<span class="num">${w(K.expense)}</span>`)}</tfoot></table>
+  </div>
+  <div class="cl-net"><b>순수익</b><span class="v">${K.net<0?"−":""}₩${won(Math.abs(K.net))}</span></div>
+  <div class="cl-grid">
+   <table class="cl"><thead><tr><th colspan="3">지출 요약</th></tr></thead><tbody>${sum.map(([k,v])=>row(k,`<span class="num">${w(v)}</span>`,`<span class="num">${clPct(v,K.sales)}</span>`)).join("")}</tbody></table>
+   <table class="cl"><thead><tr><th>분배금</th><th>금액</th><th>분배금 + 낸 비용</th></tr></thead><tbody>
+    ${K.partners.map(p=>`<tr><td>${esc(p.name)} <small class="muted">${p.pct}%</small></td><td class="r num">₩${won(p.share)}</td><td class="r"><b class="num">₩${won(p.total)}</b>${p.what.length?`<br><small class="muted">분배금 + ${esc(p.what.join(", "))}</small>`:""}</td></tr>`).join("")}
+    ${K.reservePct?`<tr><td>적립금 <small class="muted">${K.reservePct}%</small></td><td class="r num">₩${won(K.reserve)}</td><td></td></tr>`:""}
+    ${!K.partners.length?`<tr><td colspan="3" class="muted">아래 ‘분배 설정’에서 동업자와 비율을 넣으면 분배금이 계산돼요.</td></tr>`:""}
+   </tbody></table>
+  </div>`;
+}
+function renderClosing(){
+  const set=S(), mk=state.month, [y,m]=mk.split("-").map(Number), K=clCompute(mk), cfg=K.cfg;
+  let html=`<div class="bar">
+    <button class="btn" id="prevM" aria-label="이전 달">이전</button><div class="period">${y}년 ${m}월</div><button class="btn" id="nextM" aria-label="다음 달">다음</button>
+    <span class="grow"></span>
+    <button class="btn" id="clFill" ${clPrevKey(mk)?"":"disabled"}>지난 달 금액으로 빈칸 채우기</button>
+    <button class="btn" id="clCopy">카톡용 글로 복사</button>
+    <button class="btn primary" id="clImg">이미지 저장</button>
+  </div>`;
+  if(K.unchecked) html+=`<div class="banner">근무 체크 안 된 지난 근무가 ${K.unchecked}건 있어요. 인건비는 확인된 근무만 넣었어요.</div>`;
+  if(K.c.fresh) html+=`<div class="banner">이 달 결산은 아직 저장 전이에요. 항목은 ${clPrevKey(mk)?"지난 달("+clPrevKey(mk)+")":"기본"} 목록이고, 금액을 하나 넣으면 저장돼요.</div>`;
+  html+=`<article class="slip cl-doc" id="clDoc">${closingHTML(K,mk,true)}</article>
+  <details class="card" style="margin-top:14px"><summary><b>분배 설정</b> <span class="muted">수수료 ${cfg.feeRate}% · 원천징수 ${cfg.taxRate}% · 동업자 ${cfg.partners.length}명</span></summary>
+    <div class="allow-row" style="grid-template-columns:repeat(2,minmax(0,200px));margin-top:10px">
+      <label>카드사 수수료 (%)<input id="cfFee" class="num" inputmode="decimal" value="${cfg.feeRate}"></label>
+      <label>원천징수 (인건비 소계의 %)<input id="cfTax" class="num" inputmode="decimal" value="${cfg.taxRate}"></label></div>
+    ${cfg.partners.map((p,i)=>`<div class="allow-row" style="grid-template-columns:minmax(0,1fr) 100px auto"><input data-pt="${i}" data-f="name" value="${esc(p.name)}" placeholder="이름" aria-label="동업자 이름"><input data-pt="${i}" data-f="pct" class="num" inputmode="decimal" value="${p.pct}" aria-label="분배 비율(%)"><button class="btn small" data-ptdel="${i}">삭제</button></div>`).join("")}
+    <button class="btn small" id="ptAdd">+ 동업자</button>
+    <p class="muted" style="font-size:.8rem;margin:8px 0 0">비율 합이 100%보다 작으면 나머지는 적립금으로 표시돼요. 각 지출의 ‘낸 사람’을 고르면 그 사람의 ‘분배금 + 낸 비용’에 더해져요(예: 차량, 재료비·코스트코·전기세 카드 결제).</p>
+  </details>`;
+  main.innerHTML=html;
+  const go=n=>{const d=new Date(y,m-1+n,1);state.month=monthKey(d);render();};
+  main.querySelector("#prevM").onclick=()=>go(-1); main.querySelector("#nextM").onclick=()=>go(1);
+  const cur=()=>structuredClone(clMonth(mk));
+  const setPath=(o,path,v)=>{const ks=path.split(".");let t=o;ks.slice(0,-1).forEach(k=>t=t[k]);t[ks.at(-1)]=v;};
+  const num=v=>Number(String(v).replace(/[^\d]/g,""))||0;
+  const onEnter=el=>el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
+  main.querySelectorAll("[data-cl]").forEach(el=>{onEnter(el);el.addEventListener("change",()=>{const c=cur();setPath(c,el.dataset.cl,num(el.value));clSave(mk,c);render();});});
+  main.querySelectorAll("[data-cln]").forEach(el=>{onEnter(el);el.addEventListener("change",()=>{const c=cur();setPath(c,el.dataset.cln,el.value.trim());clSave(mk,c);render();});});
+  main.querySelectorAll("[data-clp]").forEach(el=>el.addEventListener("change",()=>{const c=cur();setPath(c,el.dataset.clp,el.value);clSave(mk,c);render();}));
+  main.querySelectorAll("[data-cll]").forEach(el=>{onEnter(el);el.addEventListener("change",()=>{const c=cur();c.labor={...(c.labor||{})};if(el.value.trim()==="")delete c.labor[el.dataset.cll];else c.labor[el.dataset.cll]=num(el.value);clSave(mk,c);render();});});
+  main.querySelectorAll("[data-cladd]").forEach(b=>b.onclick=()=>{const c=cur();c[b.dataset.cladd].push({name:"",amt:0,payer:""});clSave(mk,c);render();});
+  main.querySelectorAll("[data-cldel]").forEach(b=>b.onclick=()=>{const [g,i]=b.dataset.cldel.split(".");const c=cur();c[g].splice(+i,1);clSave(mk,c);render();});
+  const si=main.querySelector("#clSales"); onEnter(si);
+  si.addEventListener("change",()=>{state.settings.sales={...set.sales,[mk]:num(si.value)};saveSettings();render();});
+  main.querySelector("#clFill").onclick=()=>{const pk=clPrevKey(mk); if(!pk) return; const pv=set.closing[pk], c=cur();
+    const fill=(l,pl)=>l.forEach(x=>{if(!x.amt){const o=(pl||[]).find(p=>p.name===x.name); if(o&&o.amt) x.amt=o.amt;}});
+    fill(c.fixed,pv.fixed); fill(c.liquor,pv.liquor); fill(c.other,pv.other); clSave(mk,c); render(); toast(pk+" 금액으로 빈칸을 채웠어요. 달마다 바뀌는 금액은 고쳐 주세요");};
+  const saveCfg=f=>{const c={...clCfg(),partners:clCfg().partners.map(p=>({...p}))};f(c);state.settings.closingCfg=c;saveSettings();render();};
+  const fe=main.querySelector("#cfFee"), tx=main.querySelector("#cfTax"); [fe,tx].forEach(onEnter);
+  fe.addEventListener("change",()=>saveCfg(c=>c.feeRate=Number(fe.value)||0)); tx.addEventListener("change",()=>saveCfg(c=>c.taxRate=Number(tx.value)||0));
+  main.querySelector("#ptAdd").onclick=()=>saveCfg(c=>c.partners.push({name:"",pct:0}));
+  main.querySelectorAll("[data-ptdel]").forEach(b=>b.onclick=()=>saveCfg(c=>c.partners.splice(+b.dataset.ptdel,1)));
+  main.querySelectorAll("[data-pt]").forEach(el=>{onEnter(el);el.addEventListener("change",()=>saveCfg(c=>{const p=c.partners[+el.dataset.pt];p[el.dataset.f]=el.dataset.f==="pct"?Number(el.value)||0:el.value.trim();}));});
+  main.querySelector("#clCopy").onclick=()=>{
+    const L=[`[${set.shop} 월간 보고서 ${m}월분]`,`매출 ${won(K.sales)}원`,"",`재료비 ${won(K.material)}원`,`인건비 ${won(K.laborSum)}원 (${K.labor.map(l=>l.p.name+" "+won(l.amt)).join(", ")})`,`카드사 수수료 ${won(K.fee)}원`,`주대 ${won(K.liquorSum)}원`];
+    [...K.c.fixed,...K.c.other].filter(x=>x.amt).forEach(x=>L.push(`${x.name} ${won(x.amt)}원`)); L.push(`원천징수 ${won(K.tax)}원`,`지출 합계 ${won(K.expense)}원`,"",`순수익 ${won(K.net)}원`);
+    K.partners.forEach(p=>L.push(`${p.name} 분배금 ${won(p.share)}원 → 분배금+낸 비용 ${won(p.total)}원`)); if(K.reservePct) L.push(`적립금 ${won(K.reserve)}원`);
+    const txt=L.join("\n"); navigator.clipboard.writeText(txt).then(()=>toast("복사했어요"),()=>toast("복사가 막혔어요"));};
+  main.querySelector("#clImg").onclick=async e=>{const btn=e.currentTarget,t=btn.textContent;btn.disabled=true;btn.textContent="만드는 중…";
+    try{ if(!window.html2canvas) await new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";sc.onload=ok;sc.onerror=no;document.head.appendChild(sc);});
+      const holder=document.createElement("div");holder.style.cssText="position:fixed;left:-10000px;top:0;width:1000px";holder.innerHTML=`<article class="slip cl-doc" style="max-width:none;width:1000px">${closingHTML(K,mk,false)}</article>`;document.body.appendChild(holder);
+      const cv=await html2canvas(holder.firstChild,{scale:2,backgroundColor:"#ffffff",windowWidth:1100}); holder.remove();
+      const blob=await new Promise((ok,no)=>cv.toBlob(b=>b?ok(b):no(Error("png")),"image/png"));
+      const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`월간보고서_${y}-${pad(m)}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast("저장했어요");
+    }catch(err){toast("이미지를 만들지 못했어요");} btn.disabled=false;btn.textContent=t;};
 }
 
 /* ---------- 직원·설정 ---------- */
