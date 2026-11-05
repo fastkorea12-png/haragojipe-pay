@@ -493,6 +493,10 @@ function ensureWeek(key){ if(!state.weeks[key]) state.weeks[key]=emptyWeek(key);
 const AV={ok:"가능",open:"오픈만",close:"마감만",no:"불가"}, AV_CYCLE=["","ok","open","close","no"];
 const CHK={done:"근무함",changed:"시간 다름",absent:"결근"};
 // 실제 근무 확인 반영: 결근이면 null, 시간 다름이면 실제 시간
+// 출근 시간 순 정렬 (시간 없는 칸은 맨 뒤, 같은 시각은 기존 순서)
+function shiftStart(sh){ const r=parseRange(sh.t); return r?r.s:1e9; }
+function sortShifts(list){ return list.map((sh,k)=>[sh,k]).sort((a,b)=>shiftStart(a[0])-shiftStart(b[0])||a[1]-b[1]).map(x=>x[0]); }
+function sortWeek(w){ let changed=false; if(w) w.days.forEach(d=>{const s2=sortShifts(d.shifts); if(s2.some((x,k)=>x!==d.shifts[k])){d.shifts=s2;changed=true;}}); return changed; }
 function effT(sh){ if(sh.chk==="absent") return null; if(sh.chk==="changed" && parseRange(sh.at)) return sh.at; return sh.t; }
 function effCalc(sh,set){ const t=effT(sh); return t==null?null:shiftCalc(t,set); }
 function availOf(wk,id,i){ return (wk&&wk.avail&&wk.avail[id]&&wk.avail[id][i])||""; }
@@ -520,7 +524,7 @@ main.addEventListener("click",e=>{const g=e.target.closest("[data-go]"); if(g){s
 /* ---------- 스케줄 ---------- */
 function renderScheduleNotice(){
   const start=parseYmd(state.weekKey), end=addDays(start,6);
-  const days=(state.weeks[state.weekKey]||emptyWeek(state.weekKey)).days;
+  const days=(state.weeks[state.weekKey]||emptyWeek(state.weekKey)).days.map(d=>({...d,shifts:sortShifts(d.shifts)}));
   const dateLabel=d=>`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일(${DOW[d.getDay()]})`;
   const period=dateLabel(start)+" ~ "+(start.getFullYear()!==end.getFullYear()?dateLabel(end):
     (start.getMonth()!==end.getMonth()?`${end.getMonth()+1}월 `:"")+`${end.getDate()}일(${DOW[end.getDay()]})`);
@@ -608,7 +612,8 @@ function weekTotalsHTML(wk,set){
 // 사람별 근무표: 행=직원, 열=요일 (보기 전용, 편집은 아래 요일 칸에서) + 주 예산(wk.budget, wk.budgetBase: all=사장 포함 | staff=직원만)
 function personGridHTML(wk,start,set){
   const mk=monthKey(start), days=wk?wk.days:[], ids=[...new Set(days.flatMap(d=>d.shifts.map(sh=>sh.who)))];
-  const people=set.staff.filter(p=>ids.includes(p.id));
+  const first=id=>Math.min(...days.flatMap(d=>d.shifts.filter(sh=>sh.who===id).map(shiftStart)));
+  const people=set.staff.filter(p=>ids.includes(p.id)).sort((a,b)=>first(a.id)-first(b.id));
   let tot=0,staffPay=0,ownerPay=0;
   const rows=people.map(p=>{let h=0;const cells=[0,1,2,3,4,5,6].map(i=>{const c=days[i].shifts.filter(sh=>sh.who===p.id).map(sh=>{const x=effCalc(sh,set);if(!x)return sh.chk==="absent"?'<span class="muted">결근</span>':"";h+=x.hours;return `${clock(x.s)}–${clock(x.e)}<small>${hrs(x.hours)}h</small>`;}).join("<br>");return `<td class="${c?"on":""}">${c}</td>`;}).join("");
     const wg=wageOf(p,mk), owner=p.role==="owner", hol=!owner&&h>=15?Math.min(h,40)/40*8*wg:0, pay=Math.round(h*wg+hol); tot+=h; if(owner) ownerPay+=pay; else staffPay+=pay;
@@ -630,6 +635,7 @@ function renderSchedule(){
   const set=S(); if(!set.staff.length){ main.innerHTML=noStaff(); return; }
   const start=parseYmd(state.weekKey), end=addDays(start,6);
   const wk=state.weeks[state.weekKey];
+  if(wk && sortWeek(wk)) saveWeek(state.weekKey);
   const active=set.staff.filter(p=>!p.archived);
   const today=ymd(new Date());
   let html=`<div class="bar">
@@ -742,6 +748,7 @@ function renderSchedule(){
     el.addEventListener(el.tagName==="SELECT"?"change":"input",upd);
     if(el.tagName==="SELECT") el.addEventListener("change",render);
     if(el.tagName==="INPUT") el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
+    if(el.dataset.f==="t"||el.dataset.f==="at") el.addEventListener("change",()=>{const w=ensureWeek(state.weekKey); if(sortWeek(w)) saveWeek(state.weekKey);});
   });
   { const bi=main.querySelector("#wkBudget"), bs=main.querySelector("#wkBase");
     bi.addEventListener("keydown",e=>{if(e.key==="Enter") bi.blur();});
