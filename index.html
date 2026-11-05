@@ -147,25 +147,40 @@ td .chip,.chip{display:inline-block;font-size:.7rem;padding:1px 7px;border-radiu
 .slip .net{display:flex;justify-content:space-between;align-items:baseline;margin-top:18px;padding:12px 4px;border-top:2px solid var(--fg);border-bottom:2px solid var(--fg)}
 .slip .net .v{font-family:var(--mono);font-size:1.5rem;font-weight:500;color:var(--wine)}
 .slip .log{margin-top:18px}
-.cl-doc{max-width:1100px}
-.cl-doc h2{letter-spacing:.05em}
-.cl-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start;margin-top:10px}
-@media (max-width:820px){.cl-grid{grid-template-columns:1fr}}
-table.cl{width:100%;border-collapse:collapse;font-size:.86rem}
-table.cl th,table.cl td{border:1px solid var(--ink,var(--line));padding:5px 8px;vertical-align:middle}
-table.cl thead th{background:#ededed;text-align:center;font-weight:600}
+.cl-doc{--fg:var(--ink);--muted:var(--paper-muted);--line:var(--ink);color-scheme:light;background:#fff;color:#111;max-width:1100px;margin:0 auto;padding:26px 28px 30px;border:1px solid #ccc;font-family:var(--body);font-variant-numeric:tabular-nums}
+.cl-title{font-family:var(--body);font-weight:500;font-size:2rem;text-align:center;margin:0 0 18px;padding-bottom:10px;border-bottom:1px solid #111;letter-spacing:0}
+table.cl{width:100%;border-collapse:collapse;font-size:.9rem;table-layout:fixed}
+table.cl th,table.cl td{border:1px solid #222;padding:0 8px;height:34px;vertical-align:middle;overflow:hidden}
+table.cl thead th{background:#ececec;font-weight:500;text-align:center}
+table.cl td.c{text-align:center}
 table.cl td.r{text-align:right;white-space:nowrap}
-table.cl td:nth-child(2){text-align:right;width:150px}
-table.cl tr.grp td{background:#f6f6f6;font-weight:600}
-table.cl tr.sub td{background:#f6f6f6}
-table.cl tfoot td{font-weight:700;border-top:2px solid var(--ink,var(--line))}
-table.cl .ind{padding-left:14px;display:inline-block}
-table.cl input.cl-in{width:130px;text-align:right;padding:3px 6px}
-table.cl input.cl-name{width:120px;padding:3px 6px}
-table.cl select.cl-pay{padding:2px 4px;font-size:.8rem}
-@media (max-width:600px){.cl-doc{padding:14px 10px}table.cl{display:block;overflow-x:auto;font-size:.8rem}table.cl td:nth-child(2){width:auto}table.cl input.cl-in{width:96px}table.cl input.cl-name{width:84px}}
-.cl-net{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 4px;padding:12px 8px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
-.cl-net .v{font-family:var(--mono);font-size:1.5rem;color:var(--wine)}
+table.cl td.note{font-size:.82rem}
+table.cl td.gl{text-align:center;line-height:2.2;padding:0}
+table.cl td.sub{background:#ececec}
+table.cl tr.thick td:not(:nth-child(-n+3)){border-bottom:2.5px solid #111}
+table.cl tr.tot td{height:58px}
+table.cl tr.net td{height:72px}
+table.cl td.big{font-size:1.45rem}
+table.cl td.num-big{font-size:1.7rem}
+table.cl input.cl-in{width:100%;border:0;background:#fff8e1;text-align:right;font:inherit;padding:4px 2px}
+table.cl input.cl-name{width:100%;border:0;background:#fff8e1;text-align:center;font:inherit;padding:4px 2px}
+table.cl select.cl-pay{font-size:.78rem;padding:1px 2px;border:1px solid #bbb;background:#fff}
+.cl-x{border:0;background:none;color:#999;cursor:pointer;font-size:1rem;float:right;padding:0 2px}
+.cl-x:hover{color:#ad2525}
+.cl-bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:40px;margin-top:36px;align-items:start}
+.cl-sum table.cl{width:auto;min-width:100%}
+.cl-sum table.cl td:first-child{width:46%}
+.cl-sum td.pct{border:0;text-align:right;width:70px;padding-left:16px}
+.cl-sum table.cl{table-layout:auto}
+.cl-dist table.cl{table-layout:auto;width:auto}
+.cl-dist table.cl td.r{min-width:130px}
+.cl-dist table.cl td.c{min-width:90px}
+.cl-dist th.dk{background:#d3d3d3}
+.cl-dist td.green{background:#d9ead3}
+.cl-dist td.out{border:0;text-align:left;font-size:.82rem;white-space:nowrap;padding-left:6px}
+.cl-notes{text-align:center;margin-top:20px;line-height:2;font-size:.92rem}
+.cl-ratio{margin-top:28px;max-width:520px}
+@media (max-width:820px){.cl-doc{padding:14px 10px}.cl-doc>table.cl{display:block;overflow-x:auto}.cl-doc>table.cl>*{min-width:760px}.cl-bottom{grid-template-columns:1fr;gap:20px}.cl-dist td.out{white-space:normal}.cl-title{font-size:1.4rem}}
 select.ded-in{font-size:.78rem;padding:2px 4px;max-width:150px}
 input.wage-in{width:86px;text-align:right;padding:3px 6px}
 .allow summary{cursor:pointer}
@@ -1107,45 +1122,56 @@ function clCompute(mk){
 function clSave(mk,c){const set=state.settings; const x={...c}; delete x.fresh; set.closing={...(set.closing||{}),[mk]:x}; saveSettings();}
 function clPct(x,sales){return sales?(x/sales*100).toFixed(2)+"%":"–";}
 function closingHTML(K,mk,edit){
-  const [y,m]=mk.split("-").map(Number), w=v=>v?"₩"+won(v):"", inp=(path,v,ph="")=>edit?`<input class="num cl-in" data-cl="${path}" inputmode="numeric" value="${v?won(v):""}" placeholder="${ph}">`:`<span class="num">${w(v)}</span>`;
-  const nameIn=(path,v)=>edit?`<input class="cl-name" data-cln="${path}" value="${esc(v)}" placeholder="항목">`:esc(v);
-  const payerSel=(path,v)=>edit&&K.cfg.partners.length?`<select class="cl-pay" data-clp="${path}" aria-label="낸 사람"><option value="">매장</option>${K.cfg.partners.map((p,i)=>`<option value="${i}" ${String(v)===String(i)?"selected":""}>${esc(p.name||"동업자 "+(i+1))}</option>`).join("")}</select>`:(v!==""&&v!=null&&K.cfg.partners[v]?`<small class="muted">${esc(K.cfg.partners[v].name)} 냄</small>`:"");
-  const del=(g,i)=>edit?`<button class="btn small" data-cldel="${g}.${i}" aria-label="삭제">×</button>`:"";
-  const row=(label,amt,note="",cls="")=>`<tr class="${cls}"><td>${label}</td><td class="r">${amt}</td><td>${note}</td></tr>`;
-  let ex="";
-  ex+=row("재료비",inp("material.amt",K.material),payerSel("material.payer",K.c.material.payer));
-  ex+=`<tr class="grp"><td colspan="3">인건비 <small class="muted">${edit?"근무 확인된 실지급액(수당 포함, 3.3% 뗀 금액) · 칸에 직접 쓰면 그 값 사용":""}</small></td></tr>`;
-  K.labor.forEach(l=>ex+=row(`<span class="ind">${esc(l.p.name)}</span>`,edit?`<input class="num cl-in" data-cll="${l.p.id}" inputmode="numeric" value="${l.ov?won(l.amt):""}" placeholder="${won(l.auto)}">`:`<span class="num">${w(l.amt)}</span>`,l.ov&&edit?`<small class="muted">자동 ${won(l.auto)}</small>`:""));
-  ex+=row("<b>인건비 소계</b>",`<b class="num">${w(K.laborSum)}</b>`,"","sub");
-  ex+=row("카드사 수수료",`<span class="num">${w(K.fee)}</span>`,`매출의 ${K.cfg.feeRate}%`);
-  ex+=`<tr class="grp"><td colspan="3">주대 ${edit?`<button class="btn small" data-cladd="liquor">+ 수입사</button>`:""}</td></tr>`;
-  K.c.liquor.forEach((x,i)=>ex+=row(`<span class="ind">${nameIn("liquor."+i+".name",x.name)}${edit?"":" 정산"}</span>`,inp("liquor."+i+".amt",x.amt),del("liquor",i)));
-  ex+=row("<b>주대 소계</b>",`<b class="num">${w(K.liquorSum)}</b>`,"","sub");
-  ex+=`<tr class="grp"><td colspan="3">고정비·기타 지출 ${edit?`<button class="btn small" data-cladd="fixed">+ 항목</button>`:""}</td></tr>`;
-  K.c.fixed.forEach((x,i)=>ex+=row(`<span class="ind">${nameIn("fixed."+i+".name",x.name)}</span>`,inp("fixed."+i+".amt",x.amt),payerSel("fixed."+i+".payer",x.payer)+del("fixed",i)));
-  ex+=row("원천징수",`<span class="num">${w(K.tax)}</span>`,`인건비 소계의 ${K.cfg.taxRate}%`);
-  ex+=`<tr class="grp"><td colspan="3">기타 ${edit?`<button class="btn small" data-cladd="other">+ 항목</button> <small class="muted">회식·택시비·부가세 등</small>`:""}</td></tr>`;
-  K.c.other.forEach((x,i)=>ex+=row(`<span class="ind">${nameIn("other."+i+".name",x.name)}</span>`,inp("other."+i+".amt",x.amt),payerSel("other."+i+".payer",x.payer)+del("other",i)));
-  const sum=[["주대",K.liquorSum],["급여",K.laborSum],["재료비",K.material],["월세",(K.c.fixed.find(x=>x.name==="월세")||{}).amt||0],["3.3% 원천 징수",K.tax]];
-  return `<h2>${esc(K.set.shop)} 월간 보고서(${pad(m)}월분)</h2><div class="sub">${y}년 ${m}월 · 근무 기록 기준 자동 계산 + 직접 입력</div>
-  <div class="cl-grid">
-   <table class="cl"><thead><tr><th colspan="3">수입</th></tr><tr><th>항목</th><th>금액</th><th>비고</th></tr></thead><tbody>
-    ${row("매출",edit?`<input class="num cl-in" id="clSales" inputmode="numeric" value="${K.sales?won(K.sales):""}" placeholder="POS 매출">`:`<span class="num">${w(K.sales)}</span>`,"급여 계산 탭 매출과 같은 값")}
-    ${row("<small>메뉴 매출</small>",inp("menuSales",K.c.menuSales,"선택"),K.c.menuSales?`<small>재료비율 ${clPct(K.material,K.c.menuSales)}</small>`:"")}
-    ${row("<small>주대 매출</small>",inp("liquorSales",K.c.liquorSales,"선택"),K.c.liquorSales?`<small>주대 비율 ${clPct(K.liquorSum,K.c.liquorSales)}</small>`:"")}
-   </tbody><tfoot>${row("합계",`<span class="num">${w(K.sales)}</span>`)}</tfoot></table>
-   <table class="cl"><thead><tr><th colspan="3">지출</th></tr><tr><th>항목</th><th>금액</th><th>비고</th></tr></thead><tbody>${ex}</tbody>
-   <tfoot>${row("합계",`<span class="num">${w(K.expense)}</span>`)}</tfoot></table>
-  </div>
-  <div class="cl-net"><b>순수익</b><span class="v">${K.net<0?"−":""}₩${won(Math.abs(K.net))}</span></div>
-  <div class="cl-grid">
-   <table class="cl"><thead><tr><th colspan="3">지출 요약</th></tr></thead><tbody>${sum.map(([k,v])=>row(k,`<span class="num">${w(v)}</span>`,`<span class="num">${clPct(v,K.sales)}</span>`)).join("")}</tbody></table>
-   <table class="cl"><thead><tr><th>분배금</th><th>금액</th><th>분배금 + 낸 비용</th></tr></thead><tbody>
-    ${K.partners.map(p=>`<tr><td>${esc(p.name)} <small class="muted">${p.pct}%</small></td><td class="r num">₩${won(p.share)}</td><td class="r"><b class="num">₩${won(p.total)}</b>${p.what.length?`<br><small class="muted">분배금 + ${esc(p.what.join(", "))}</small>`:""}</td></tr>`).join("")}
-    ${K.reservePct?`<tr><td>적립금 <small class="muted">${K.reservePct}%</small></td><td class="r num">₩${won(K.reserve)}</td><td></td></tr>`:""}
-    ${!K.partners.length?`<tr><td colspan="3" class="muted">아래 ‘분배 설정’에서 동업자와 비율을 넣으면 분배금이 계산돼요.</td></tr>`:""}
+  const [,m]=mk.split("-").map(Number), W=v=>v?"₩"+won(v):"";
+  const amt=(path,v,ph="")=>edit?`<input class="cl-in" data-cl="${path}" inputmode="numeric" value="${v?"₩"+won(v):""}" placeholder="${ph}" aria-label="금액">`:W(v);
+  const nm=(path,v)=>edit?`<input class="cl-name" data-cln="${path}" value="${esc(v)}" placeholder="항목" aria-label="항목 이름">`:esc(v);
+  const pay=(path,v)=>edit&&K.cfg.partners.length?`<select class="cl-pay" data-clp="${path}" aria-label="낸 사람"><option value="">매장</option>${K.cfg.partners.map((p,i)=>`<option value="${i}" ${String(v)===String(i)?"selected":""}>${esc(p.name||"동업자 "+(i+1))} 냄</option>`).join("")}</select>`:"";
+  const del=(g,i)=>edit?`<button class="cl-x" data-cldel="${g}.${i}" aria-label="삭제" title="삭제">×</button>`:"";
+  // 오른쪽(지출) 줄: {g:묶음 이름, label, amt, note, cls}
+  const R=[];
+  R.push({label:"재료비",amt:amt("material.amt",K.material),note:pay("material.payer",K.c.material.payer),cls:"thick"});
+  K.labor.forEach(l=>R.push({g:"인건비",label:esc(l.p.name),amt:edit?`<input class="cl-in" data-cll="${l.p.id}" inputmode="numeric" value="${l.ov?"₩"+won(l.amt):""}" placeholder="₩${won(l.auto)}" aria-label="${esc(l.p.name)} 인건비">`:W(l.amt),note:l.ov&&edit?`<small>자동 ₩${won(l.auto)}</small>`:""}));
+  R.push({g:"인건비",sub:true,label:"소계",note:W(K.laborSum)});
+  R.push({label:"카드사 수수료",amt:W(K.fee),note:`${K.cfg.feeRate}%로 계산`,center:true,cls:"thick"});
+  K.c.liquor.forEach((x,i)=>R.push({g:"주대",label:edit?nm("liquor."+i+".name",x.name):esc(x.name)+" 정산",amt:amt("liquor."+i+".amt",x.amt),note:del("liquor",i)}));
+  R.push({g:"주대",sub:true,label:"소계",note:W(K.liquorSum),cls:"thick"});
+  K.c.fixed.forEach((x,i)=>R.push({label:nm("fixed."+i+".name",x.name),amt:amt("fixed."+i+".amt",x.amt),note:pay("fixed."+i+".payer",x.payer)+del("fixed",i)}));
+  R.push({label:"원천징수",amt:W(K.tax)});
+  const oth=K.c.other.length?K.c.other:[{name:"",amt:0,payer:""}];
+  oth.forEach((x,i)=>R.push({g:"기타",label:K.c.other.length?nm("other."+i+".name",x.name):"",amt:K.c.other.length?amt("other."+i+".amt",x.amt):"",note:K.c.other.length?pay("other."+i+".payer",x.payer)+del("other",i):""}));
+  // 묶음 rowspan
+  const span={}; R.forEach((r,i)=>{if(r.g){if(i===0||R[i-1].g!==r.g){span[i]=1;r.first=true;let j=i+1;while(j<R.length&&R[j].g===r.g){span[i]++;j++;}}}});
+  const vert=t=>[...t].join("<br>");
+  const left=i=>i===0?`<td class="c">매출</td><td class="r">${edit?`<input class="cl-in" id="clSales" inputmode="numeric" value="${K.sales?"₩"+won(K.sales):""}" placeholder="POS 매출" aria-label="매출">`:W(K.sales)}</td><td></td>`:`<td></td><td></td><td></td>`;
+  const body=R.map((r,i)=>{
+    const g=r.g?(r.first?`<td class="gl" rowspan="${span[i]}">${vert(r.g)}</td>`:""):"";
+    const right=r.sub?`<td class="c sub" colspan="2">${r.label}</td><td class="r sub">${r.note}</td>`
+      : r.g?`<td class="c">${r.label}</td><td class="r">${r.amt||""}</td><td class="${r.center?"c":""} note">${r.note||""}</td>`
+      : `<td class="c" colspan="2">${r.label}</td><td class="r">${r.amt||""}</td><td class="${r.center?"c":""} note">${r.note||""}</td>`;
+    return `<tr class="${r.cls||""}">${left(i)}${g}${right}</tr>`;}).join("");
+  const rent=(K.c.fixed.find(x=>x.name==="월세")||{}).amt||0;
+  const sum=[["주대",K.liquorSum],["급여",K.laborSum],["재료비",K.material],["월세",rent],["3.3% 원천 징수",K.tax,true]];
+  const others=K.partners.filter(p=>p.what.length);
+  return `<h2 class="cl-title">${esc(K.set.shop)} 월간 보고서(${pad(m)}월분)</h2>
+  <table class="cl"><colgroup><col style="width:11%"><col style="width:11%"><col style="width:13%"><col style="width:3.5%"><col style="width:12%"><col style="width:12%"><col></colgroup>
+   <thead><tr><th colspan="3">수입</th><th colspan="4">지출</th></tr><tr><th>항목</th><th>금액</th><th>비고</th><th colspan="2">항목</th><th>금액</th><th>비고</th></tr></thead>
+   <tbody>${body}</tbody>
+   <tfoot><tr class="tot"><td class="c">합계</td><td class="r">${W(K.sales)}</td><td></td><td class="c" colspan="2">합계</td><td class="r">${W(K.expense)}</td><td></td></tr>
+   <tr class="net"><td class="c big">순수익</td><td colspan="6" class="c big num-big">${K.net<0?"−":""}₩${won(Math.abs(K.net))}</td></tr></tfoot>
+  </table>
+  <div class="cl-bottom">
+   <div class="cl-sum"><table class="cl"><thead><tr><th colspan="2">지출 요약</th></tr></thead><tbody>${sum.map(([k,v,np])=>`<tr><td class="c">${k}</td><td class="r">${W(v)}</td><td class="pct">${np?"":clPct(v,K.sales)}</td></tr>`).join("")}</tbody></table></div>
+   <div class="cl-dist"><table class="cl"><thead><tr><th colspan="2">분배금</th><th class="dk">분배금 + 기타 비용</th></tr></thead><tbody>
+    ${K.partners.map(p=>`<tr><td class="c">${esc(p.name)}</td><td class="r">₩${won(p.share)}</td><td class="r green">₩${won(p.total)}</td><td class="out">${p.what.length?"분배금 + "+esc(p.what.join(", ")):""}</td></tr>`).join("")}
+    ${!K.partners.length?`<tr><td colspan="3" class="c muted">‘분배 설정’에서 동업자와 비율을 넣어 주세요</td></tr>`:""}
    </tbody></table>
-  </div>`;
+   ${others.length||K.reservePct?`<div class="cl-notes">${others.length?`<div>* 기타비용 *</div>${others.map(p=>`<div>${esc(p.name.replace(/^김/,""))} : 분배금 + ${esc(p.what.join(", "))}</div>`).join("")}`:""}${K.reservePct?`<div>적립금(${K.reservePct}%) : ₩${won(K.reserve)}</div>`:""}</div>`:""}
+   </div>
+  </div>
+  ${(K.c.menuSales||K.c.liquorSales||edit)?`<table class="cl cl-ratio"><thead><tr><th>항목</th><th>매출</th><th>원가</th><th>원가율</th></tr></thead><tbody>
+   <tr><td class="c">메뉴</td><td class="r">${amt("menuSales",K.c.menuSales,"메뉴 매출")}</td><td class="r">${W(K.material)}</td><td class="c">${K.c.menuSales?clPct(K.material,K.c.menuSales):""}</td></tr>
+   <tr><td class="c">주대</td><td class="r">${amt("liquorSales",K.c.liquorSales,"주대 매출")}</td><td class="r">${W(K.liquorSum)}</td><td class="c">${K.c.liquorSales?clPct(K.liquorSum,K.c.liquorSales):""}</td></tr>
+  </tbody></table>`:""}`;
 }
 function renderClosing(){
   const set=S(), mk=state.month, [y,m]=mk.split("-").map(Number), K=clCompute(mk), cfg=K.cfg;
@@ -1158,7 +1184,8 @@ function renderClosing(){
   </div>`;
   if(K.unchecked) html+=`<div class="banner">근무 체크 안 된 지난 근무가 ${K.unchecked}건 있어요. 인건비는 확인된 근무만 넣었어요.</div>`;
   if(K.c.fresh) html+=`<div class="banner">이 달 결산은 아직 저장 전이에요. 항목은 ${clPrevKey(mk)?"지난 달("+clPrevKey(mk)+")":"기본"} 목록이고, 금액을 하나 넣으면 저장돼요.</div>`;
-  html+=`<article class="slip cl-doc" id="clDoc">${closingHTML(K,mk,true)}</article>
+  html+=`<div class="bar" style="margin:0 0 8px;font-size:.85rem"><span class="muted">노란 칸에 바로 입력 · 인건비는 근무 확인된 실지급액이 자동으로 들어가요(칸에 쓰면 그 값 사용)</span><span class="grow"></span><button class="btn small" data-cladd="liquor">+ 수입사</button><button class="btn small" data-cladd="fixed">+ 지출 항목</button><button class="btn small" data-cladd="other">+ 기타</button></div>`;
+  html+=`<article class="cl-doc" id="clDoc">${closingHTML(K,mk,true)}</article>
   <details class="card" style="margin-top:14px"><summary><b>분배 설정</b> <span class="muted">수수료 ${cfg.feeRate}% · 원천징수 ${cfg.taxRate}% · 동업자 ${cfg.partners.length}명</span></summary>
     <div class="allow-row" style="grid-template-columns:repeat(2,minmax(0,200px));margin-top:10px">
       <label>카드사 수수료 (%)<input id="cfFee" class="num" inputmode="decimal" value="${cfg.feeRate}"></label>
@@ -1198,8 +1225,8 @@ function renderClosing(){
     const txt=L.join("\n"); navigator.clipboard.writeText(txt).then(()=>toast("복사했어요"),()=>toast("복사가 막혔어요"));};
   main.querySelector("#clImg").onclick=async e=>{const btn=e.currentTarget,t=btn.textContent;btn.disabled=true;btn.textContent="만드는 중…";
     try{ if(!window.html2canvas) await new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";sc.onload=ok;sc.onerror=no;document.head.appendChild(sc);});
-      const holder=document.createElement("div");holder.style.cssText="position:fixed;left:-10000px;top:0;width:1000px";holder.innerHTML=`<article class="slip cl-doc" style="max-width:none;width:1000px">${closingHTML(K,mk,false)}</article>`;document.body.appendChild(holder);
-      const cv=await html2canvas(holder.firstChild,{scale:2,backgroundColor:"#ffffff",windowWidth:1100}); holder.remove();
+      const holder=document.createElement("div");holder.style.cssText="position:fixed;left:-10000px;top:0;width:1100px";holder.innerHTML=`<article class="cl-doc" style="max-width:none;width:1100px">${closingHTML(K,mk,false)}</article>`;document.body.appendChild(holder);
+      const cv=await html2canvas(holder.firstChild,{scale:2,backgroundColor:"#ffffff",windowWidth:1200}); holder.remove();
       const blob=await new Promise((ok,no)=>cv.toBlob(b=>b?ok(b):no(Error("png")),"image/png"));
       const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`월간보고서_${y}-${pad(m)}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast("저장했어요");
     }catch(err){toast("이미지를 만들지 못했어요");} btn.disabled=false;btn.textContent=t;};
