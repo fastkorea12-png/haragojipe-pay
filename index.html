@@ -166,6 +166,7 @@ table.cl select.cl-pay{padding:2px 4px;font-size:.8rem}
 @media (max-width:600px){.cl-doc{padding:14px 10px}table.cl{display:block;overflow-x:auto;font-size:.8rem}table.cl td:nth-child(2){width:auto}table.cl input.cl-in{width:96px}table.cl input.cl-name{width:84px}}
 .cl-net{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 4px;padding:12px 8px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
 .cl-net .v{font-family:var(--mono);font-size:1.5rem;color:var(--wine)}
+input.wage-in{width:86px;text-align:right;padding:3px 6px}
 .allow summary{cursor:pointer}
 .allow-row{display:grid;grid-template-columns:minmax(0,1.2fr) 120px minmax(0,2fr) auto;gap:6px;margin-bottom:6px}
 @media (max-width:600px){.allow-row{grid-template-columns:1fr 110px}.allow-row input[data-f="memo"]{grid-column:1/-1}}
@@ -456,6 +457,8 @@ function saveWeek(key){ queueWrite("weeks/"+key, ()=>state.weeks[key]); }
 
 function S(){ return state.settings || DEFAULT_SETTINGS; }
 function staffById(id){ return S().staff.find(p=>p.id===id); }
+// 달별 시급: p.wageFrom["YYYY-MM"] = 그 달부터 적용할 시급. 없으면 p.wage(직원·설정의 기본 시급)
+function wageOf(p,mk){ const h=p&&p.wageFrom||{}; const k=Object.keys(h).filter(x=>x<=mk).sort().at(-1); return k?h[k]:p.wage; }
 function emptyWeek(key){ return {start:key, days:Array.from({length:7},()=>({shifts:[],note:""}))}; }
 function ensureWeek(key){ if(!state.weeks[key]) state.weeks[key]=emptyWeek(key); return state.weeks[key]; }
 const AV={ok:"가능",open:"오픈만",close:"마감만",no:"불가"}, AV_CYCLE=["","ok","open","close","no"];
@@ -541,10 +544,10 @@ function monthCost(mk,set){
   const cost=(sh,est)=>{const p=staffById(sh.who);if(!p)return null;const c=est?shiftCalc(sh.t,set):effCalc(sh,set);return c&&{p,c};};
   monthDays(mk).forEach(d=>{
     const {shifts,est}=dayShifts(d,true);if(est&&shifts.length)out.estDays++;
-    shifts.forEach(sh=>{const x=cost(sh,est);if(x)add(d,est,x.c.hours*x.p.wage+(set.night&&x.p.role!=="owner"?x.c.night*x.p.wage*0.5:0));});
+    shifts.forEach(sh=>{const x=cost(sh,est);if(x){const wg=wageOf(x.p,monthKey(d));add(d,est,x.c.hours*wg+(set.night&&x.p.role!=="owner"?x.c.night*wg*0.5:0));}});
     if(d.getDay()===6){const per={};
       for(let i=0;i<7;i++){const ds=dayShifts(addDays(d,i-6),true);ds.shifts.forEach(sh=>{const x=cost(sh,ds.est);if(x&&x.p.role!=="owner")per[x.p.id]=(per[x.p.id]||0)+x.c.hours;});}
-      Object.entries(per).forEach(([id,h])=>add(d,est,Math.round(holidayHours(h)*staffById(id).wage)));}
+      Object.entries(per).forEach(([id,h])=>add(d,est,Math.round(holidayHours(h)*wageOf(staffById(id),monthKey(d)))));}
   });
   for(const k of ["past","plan","est"])out[k]=Math.round(out[k]);return out;
 }
@@ -553,7 +556,7 @@ function weekTotalsHTML(wk,set){
   if(wk) wk.days.forEach(day=>day.shifts.forEach(sh=>{const c=effCalc(sh,set); if(!c) return; tot[sh.who]=tot[sh.who]||{h:0,n:0,d:0}; tot[sh.who].h+=c.hours; tot[sh.who].n+=c.night; tot[sh.who].d++;}));
   let rows="", sumH=0, sumPay=0, sumHol=0, staffCost=0;
   set.staff.filter(p=>tot[p.id]).forEach(p=>{
-    const t=tot[p.id], owner=p.role==="owner", pay=Math.round(t.h*p.wage), holH=owner?0:holidayHours(t.h), hol=Math.round(holH*p.wage), night=!owner&&set.night?Math.round(t.n*p.wage*0.5):0;
+    const t=tot[p.id], owner=p.role==="owner", wg=wageOf(p,monthKey(start)), pay=Math.round(t.h*wg), holH=owner?0:holidayHours(t.h), hol=Math.round(holH*wg), night=!owner&&set.night?Math.round(t.n*wg*0.5):0;
     sumH+=t.h; sumPay+=pay; sumHol+=hol; staffCost+=pay+hol+night;
     const warn = !owner && t.h>=15 ? '<span class="chip warn">주 15시간 이상 · 주휴 대상</span>' : (!owner && t.h>=13 ? '<span class="chip warn">15시간까지 '+hrs(15-t.h)+'h 남음</span>':"");
     rows+=`<tr><td>${esc(p.name)} ${owner?'<span class="chip owner">사장</span>':""} ${warn}</td><td class="num">${t.d}일</td><td class="num">${hrs(t.h)}</td>${show?`<td class="num">${won(pay)}</td><td>${hol?`주휴 ${won(hol)}원 <small class="muted">(${hrs(holH)}h)</small>`:"–"}</td>`:""}</tr>`;
@@ -821,8 +824,8 @@ function computeMonth(mk, project, confirmedOnly=false, withHoliday){
       holidayWeeks.push({start:st, per});
     });
   }
-  const rows=set.staff.filter(p=>res[p.id]||allowancesOf(mk,p.id).some(a=>a.amt)).map(p=>{
-    const r=get(p.id), owner=p.role==="owner";
+  const rows=set.staff.filter(p=>res[p.id]||allowancesOf(mk,p.id).some(a=>a.amt)).map(p0=>{
+    const p={...p0,wage:wageOf(p0,mk)}, r=get(p.id), owner=p.role==="owner";
     const base=Math.round(r.hours*p.wage);
     const nightPay= !owner && set.night ? Math.round(r.night*p.wage*0.5) : 0;
     let hol=0, holH=0;
@@ -859,7 +862,7 @@ function renderPayroll(){
     <div class="stat"><label class="k" for="sales">이 달 매출 (원)</label><input id="sales" type="text" inputmode="numeric" class="num" style="width:100%;margin-top:4px" value="${sales?won(sales):""}" placeholder="13,000,000"></div>
   </div>`;
   const tr=r=>`<tr><td>${esc(r.p.name)} ${r.owner?'<span class="chip owner">사장</span>':""} ${r.est?'<span class="chip est">예상 포함</span>':""}</td>
-    <td class="num">${r.days}</td><td class="num">${hrs(r.hours)}</td><td class="num">${hrs(confirmedRow(r)?.hours||0)}</td><td class="num">${won(confirmedRow(r)?.net||0)}</td><td class="num">${won(r.net-(confirmedRow(r)?.net||0))}</td><td class="num">${won(r.p.wage)}</td><td class="num">${won(r.base)}</td>
+    <td class="num">${r.days}</td><td class="num">${hrs(r.hours)}</td><td class="num">${hrs(confirmedRow(r)?.hours||0)}</td><td class="num">${won(confirmedRow(r)?.net||0)}</td><td class="num">${won(r.net-(confirmedRow(r)?.net||0))}</td><td class="num"><input class="num wage-in" data-wage="${r.p.id}" inputmode="numeric" value="${won(r.p.wage)}" aria-label="${esc(r.p.name)} 시급"></td><td class="num">${won(r.base)}</td>
     <td class="num">${r.nightPay?won(r.nightPay):"–"}</td><td class="num">${r.hol?won(r.hol):"–"}</td><td class="num">${r.extra?won(r.extra):"–"}</td><td class="num"><b>${won(r.gross)}</b></td>
     <td class="num">${r.ded.total?"−"+won(r.ded.total):"–"}</td><td class="num"><b>${won(r.net)}</b></td>
     <td>${r.owner?"":`<button class="btn small" data-slip="${r.p.id}">명세서</button>`}</td></tr>`;
@@ -868,7 +871,7 @@ function renderPayroll(){
     <tbody>${staffRows.map(tr).join("")}${ownerRows.map(tr).join("")}</tbody>
     <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(R.rows.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${hrs(confirmed.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${won(confirmed.reduce((a,r)=>a+r.net,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0)-confirmed.reduce((a,r)=>a+r.net,0))}</td><td></td><td class="num">${won(R.rows.reduce((a,r)=>a+r.base,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.nightPay,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.hol,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.extra,0))}</td><td class="num">${won(staffCost+ownerCost)}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.ded.total,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0))}</td><td></td></tr></tfoot>
   </table></div>
-  <p class="muted" style="font-size:.8rem;margin:10px 0 0">야간가산 ${set.night?"켜짐":"꺼짐"} · 주휴수당 ${set.holiday?"켜짐":"꺼짐"} · 휴게시간 차감 ${set.breakDeduct?"켜짐":"꺼짐"} · 바꾸려면 <button class="btn small" data-go="settings">직원·설정</button></p></div>`;
+  <p class="muted" style="font-size:.8rem;margin:10px 0 0">시급 칸을 고치면 이 달부터 그 시급으로 계산돼요(지난 달은 그대로). · 야간가산 ${set.night?"켜짐":"꺼짐"} · 주휴수당 ${set.holiday?"켜짐":"꺼짐"} · 휴게시간 차감 ${set.breakDeduct?"켜짐":"꺼짐"} · 바꾸려면 <button class="btn small" data-go="settings">직원·설정</button></p></div>`;
   main.innerHTML=html;
   const go=n=>{const d=new Date(y,m-1+n,1);state.month=monthKey(d);render();};
   main.querySelector("#prevM").onclick=()=>go(-1); main.querySelector("#nextM").onclick=()=>go(1);
@@ -877,6 +880,13 @@ function renderPayroll(){
   si.addEventListener("change",()=>{const v=Number(si.value.replace(/[^\d]/g,""));state.settings.sales={...set.sales,[state.month]:v};saveSettings();render();});
   si.addEventListener("keydown",e=>{if(e.key==="Enter") si.blur();});
   main.querySelectorAll("[data-slip]").forEach(b=>b.onclick=()=>{state.slipStaff=b.dataset.slip;state.tab="slip";render();});
+  main.querySelectorAll("[data-wage]").forEach(el=>{
+    el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
+    el.addEventListener("change",()=>{const v=Number(el.value.replace(/[^\d]/g,""));const p=state.settings.staff.find(x=>x.id===el.dataset.wage);
+      if(!p||!v){render();return;} if(v===wageOf(p,state.month)){render();return;}
+      p.wageFrom={...(p.wageFrom||{}),[state.month]:v};
+      saveSettings(); render(); toast(`${p.name} 시급 ${won(v)}원 · ${Number(state.month.slice(5))}월부터 적용 (이전 달은 그대로)`);});
+  });
 }
 
 /* ---------- 급여명세서 ---------- */
@@ -1198,7 +1208,7 @@ function renderSettings(){
     ${list.map(p=>`<div class="staffrow" data-id="${p.id}">
       <input id="n-${p.id}" type="text" data-f="name" value="${esc(p.name)}" aria-label="이름">
       <input id="no-${p.id}" type="text" data-f="empNo" value="${esc(p.empNo||"")}" placeholder="사번" aria-label="사번">
-      <input id="wg-${p.id}" type="text" inputmode="numeric" class="num" data-f="wage" value="${won(p.wage)}" aria-label="시급">
+      <input id="wg-${p.id}" type="text" inputmode="numeric" class="num" data-f="wage" value="${won(wageOf(p,monthKey(new Date())))}" aria-label="시급(이번 달)" title="${Object.keys(p.wageFrom||{}).length?"달별 시급: "+Object.entries(p.wageFrom).sort().map(([k,v])=>k+"부터 "+won(v)).join(", "):""}">
       <select id="r-${p.id}" data-f="role" aria-label="구분"><option value="staff" ${p.role!=="owner"?"selected":""}>직원</option><option value="owner" ${p.role==="owner"?"selected":""}>사장</option></select>
       <select id="dd-${p.id}" data-f="deduct" aria-label="공제" ${p.role==="owner"?"disabled":""}><option value="none" ${(p.deduct||"none")==="none"?"selected":""}>공제 없음</option><option value="3.3" ${p.deduct==="3.3"?"selected":""}>3.3% 원천징수</option><option value="4" ${p.deduct==="4"?"selected":""}>4대보험</option></select>
       <button class="btn ghost small" data-arch="${p.id}">그만둠</button>
@@ -1240,7 +1250,8 @@ function renderSettings(){
   main.querySelectorAll(".staffrow[data-id] [data-f]").forEach(el=>{
     el.addEventListener("change",()=>{
       const p=set.staff.find(x=>x.id===el.closest("[data-id]").dataset.id), f=el.dataset.f;
-      p[f]= f==="wage"? num(el.value) : el.value;
+      if(f==="wage" && Object.keys(p.wageFrom||{}).length){ p.wageFrom={...p.wageFrom,[monthKey(new Date())]:num(el.value)}; }
+      else p[f]= f==="wage"? num(el.value) : el.value;
       if(f==="role" && el.value==="owner") p.deduct="none";
       saveSettings(); render();
     });
