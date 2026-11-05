@@ -166,6 +166,7 @@ table.cl select.cl-pay{padding:2px 4px;font-size:.8rem}
 @media (max-width:600px){.cl-doc{padding:14px 10px}table.cl{display:block;overflow-x:auto;font-size:.8rem}table.cl td:nth-child(2){width:auto}table.cl input.cl-in{width:96px}table.cl input.cl-name{width:84px}}
 .cl-net{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 4px;padding:12px 8px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
 .cl-net .v{font-family:var(--mono);font-size:1.5rem;color:var(--wine)}
+select.ded-in{font-size:.78rem;padding:2px 4px;max-width:150px}
 input.wage-in{width:86px;text-align:right;padding:3px 6px}
 .allow summary{cursor:pointer}
 .allow-row{display:grid;grid-template-columns:minmax(0,1.2fr) 120px minmax(0,2fr) auto;gap:6px;margin-bottom:6px}
@@ -458,6 +459,9 @@ function saveWeek(key){ queueWrite("weeks/"+key, ()=>state.weeks[key]); }
 function S(){ return state.settings || DEFAULT_SETTINGS; }
 function staffById(id){ return S().staff.find(p=>p.id===id); }
 // 달별 시급: p.wageFrom["YYYY-MM"] = 그 달부터 적용할 시급. 없으면 p.wage(직원·설정의 기본 시급)
+const DED_LABEL={none:"공제 없음","3.3":"3.3% 원천징수","4":"4대보험","4emp":"4대보험 (사장 부담)"};
+// 달별 공제: p.deductFrom["YYYY-MM"] = 그 달부터 적용할 공제 방식. 없으면 p.deduct
+function deductOf(p,mk){ const h=p&&p.deductFrom||{}; const k=Object.keys(h).filter(x=>x<=mk).sort().at(-1); return k?h[k]:(p.deduct||"none"); }
 function wageOf(p,mk){ const h=p&&p.wageFrom||{}; const k=Object.keys(h).filter(x=>x<=mk).sort().at(-1); return k?h[k]:p.wage; }
 function emptyWeek(key){ return {start:key, days:Array.from({length:7},()=>({shifts:[],note:""}))}; }
 function ensureWeek(key){ if(!state.weeks[key]) state.weeks[key]=emptyWeek(key); return state.weeks[key]; }
@@ -794,10 +798,12 @@ function dayShifts(d, project){
 function deduction(p, gross){
   const set=S(), r=set.rates, f10=x=>Math.floor(x/10)*10;
   if(p.deduct==="3.3"){const tax=f10(gross*0.03), loc=f10(tax*0.1); return {items:[["소득세 (3%)",tax],["지방소득세 (0.3%)",loc]], total:tax+loc};}
-  if(p.deduct==="4"){
+  if(p.deduct==="4"||p.deduct==="4emp"){
     const pen=f10(gross*r.pension/100), hea=f10(gross*r.health/100), car=f10(hea*r.care/100), emp=f10(gross*r.employ/100);
     const items=[["국민연금 ("+r.pension+"%)",pen],["건강보험 ("+r.health+"%)",hea],["장기요양보험 (건강보험의 "+r.care+"%)",car],["고용보험 ("+r.employ+"%)",emp]];
-    return {items,total:pen+hea+car+emp};
+    const sum=pen+hea+car+emp;
+    if(p.deduct==="4emp") return {items:[...items,["근로자 부담분 사업주 부담",-sum]],total:0};
+    return {items,total:sum};
   }
   return {items:[],total:0};
 }
@@ -825,7 +831,7 @@ function computeMonth(mk, project, confirmedOnly=false, withHoliday){
     });
   }
   const rows=set.staff.filter(p=>res[p.id]||allowancesOf(mk,p.id).some(a=>a.amt)).map(p0=>{
-    const p={...p0,wage:wageOf(p0,mk)}, r=get(p.id), owner=p.role==="owner";
+    const p={...p0,wage:wageOf(p0,mk),deduct:deductOf(p0,mk)}, r=get(p.id), owner=p.role==="owner";
     const base=Math.round(r.hours*p.wage);
     const nightPay= !owner && set.night ? Math.round(r.night*p.wage*0.5) : 0;
     let hol=0, holH=0;
@@ -864,14 +870,14 @@ function renderPayroll(){
   const tr=r=>`<tr><td>${esc(r.p.name)} ${r.owner?'<span class="chip owner">사장</span>':""} ${r.est?'<span class="chip est">예상 포함</span>':""}</td>
     <td class="num">${r.days}</td><td class="num">${hrs(r.hours)}</td><td class="num">${hrs(confirmedRow(r)?.hours||0)}</td><td class="num">${won(confirmedRow(r)?.net||0)}</td><td class="num">${won(r.net-(confirmedRow(r)?.net||0))}</td><td class="num"><input class="num wage-in" data-wage="${r.p.id}" inputmode="numeric" value="${won(r.p.wage)}" aria-label="${esc(r.p.name)} 시급"></td><td class="num">${won(r.base)}</td>
     <td class="num">${r.nightPay?won(r.nightPay):"–"}</td><td class="num">${r.hol?won(r.hol):"–"}</td><td class="num">${r.extra?won(r.extra):"–"}</td><td class="num"><b>${won(r.gross)}</b></td>
-    <td class="num">${r.ded.total?"−"+won(r.ded.total):"–"}</td><td class="num"><b>${won(r.net)}</b></td>
+    <td class="num">${r.owner?"–":`<select class="ded-in" data-ded="${r.p.id}" aria-label="${esc(r.p.name)} 공제">${Object.entries(DED_LABEL).map(([k,v])=>`<option value="${k}" ${r.p.deduct===k?"selected":""}>${v}</option>`).join("")}</select><br>${r.ded.total?"−"+won(r.ded.total):"0"}`}</td><td class="num"><b>${won(r.net)}</b></td>
     <td>${r.owner?"":`<button class="btn small" data-slip="${r.p.id}">명세서</button>`}</td></tr>`;
   html+=`<div class="card"><div class="scroll"><table>
     <thead><tr><th>이름</th><th>근무일</th><th>시간</th><th>확인된 시간</th><th>명세서 실지급</th><th>실지급 차이</th><th>시급</th><th>기본급</th><th>야간가산</th><th>주휴</th><th>수당</th><th>지급총액</th><th>공제</th><th>실지급</th><th></th></tr></thead>
     <tbody>${staffRows.map(tr).join("")}${ownerRows.map(tr).join("")}</tbody>
     <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(R.rows.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${hrs(confirmed.reduce((a,r)=>a+r.hours,0))}</td><td class="num">${won(confirmed.reduce((a,r)=>a+r.net,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0)-confirmed.reduce((a,r)=>a+r.net,0))}</td><td></td><td class="num">${won(R.rows.reduce((a,r)=>a+r.base,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.nightPay,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.hol,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.extra,0))}</td><td class="num">${won(staffCost+ownerCost)}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.ded.total,0))}</td><td class="num">${won(R.rows.reduce((a,r)=>a+r.net,0))}</td><td></td></tr></tfoot>
   </table></div>
-  <p class="muted" style="font-size:.8rem;margin:10px 0 0">시급 칸을 고치면 이 달부터 그 시급으로 계산돼요(지난 달은 그대로). · 야간가산 ${set.night?"켜짐":"꺼짐"} · 주휴수당 ${set.holiday?"켜짐":"꺼짐"} · 휴게시간 차감 ${set.breakDeduct?"켜짐":"꺼짐"} · 바꾸려면 <button class="btn small" data-go="settings">직원·설정</button></p></div>`;
+  <p class="muted" style="font-size:.8rem;margin:10px 0 0">시급·공제 칸을 고치면 이 달부터 적용돼요(지난 달은 그대로). ‘4대보험 (사장 부담)’은 근로자 몫을 사장이 내서 공제 0원으로 나가요. · 야간가산 ${set.night?"켜짐":"꺼짐"} · 주휴수당 ${set.holiday?"켜짐":"꺼짐"} · 휴게시간 차감 ${set.breakDeduct?"켜짐":"꺼짐"} · 바꾸려면 <button class="btn small" data-go="settings">직원·설정</button></p></div>`;
   main.innerHTML=html;
   const go=n=>{const d=new Date(y,m-1+n,1);state.month=monthKey(d);render();};
   main.querySelector("#prevM").onclick=()=>go(-1); main.querySelector("#nextM").onclick=()=>go(1);
@@ -880,6 +886,8 @@ function renderPayroll(){
   si.addEventListener("change",()=>{const v=Number(si.value.replace(/[^\d]/g,""));state.settings.sales={...set.sales,[state.month]:v};saveSettings();render();});
   si.addEventListener("keydown",e=>{if(e.key==="Enter") si.blur();});
   main.querySelectorAll("[data-slip]").forEach(b=>b.onclick=()=>{state.slipStaff=b.dataset.slip;state.tab="slip";render();});
+  main.querySelectorAll("[data-ded]").forEach(el=>el.addEventListener("change",()=>{const p=state.settings.staff.find(x=>x.id===el.dataset.ded); if(!p) return;
+    p.deductFrom={...(p.deductFrom||{}),[state.month]:el.value}; saveSettings(); render(); toast(`${p.name} 공제 ‘${DED_LABEL[el.value]}’ · ${Number(state.month.slice(5))}월부터 적용 (이전 달은 그대로)`);}));
   main.querySelectorAll("[data-wage]").forEach(el=>{
     el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
     el.addEventListener("change",()=>{const v=Number(el.value.replace(/[^\d]/g,""));const p=state.settings.staff.find(x=>x.id===el.dataset.wage);
@@ -979,7 +987,7 @@ function slipHTML(row){
       return {d,in:d.getMonth()===m-1,cls:dc(d),logs,h};});
     const h=cells.reduce((a,c)=>a+c.h,0);
     weeks.push({cells,h,satIn:cells[6].in});}
-  const dedLabel={none:"공제 없음","3.3":"사업소득 3.3% 원천징수","4":"4대보험 근로자 부담분"}[row.p.deduct||"none"];
+  const dedLabel={none:"공제 없음","3.3":"사업소득 3.3% 원천징수","4":"4대보험 근로자 부담분","4emp":"4대보험 근로자 부담분 · 이 달은 사업주 부담"}[row.p.deduct||"none"];
   return `<h2>급 여 명 세 서</h2><div class="sub">${y}년 ${m}월분 · ${esc(set.shop)}</div>
   <div class="meta">
     <div><span class="nm">성명</span><b class="nm">${esc(row.p.name)}</b></div>
@@ -1210,7 +1218,7 @@ function renderSettings(){
       <input id="no-${p.id}" type="text" data-f="empNo" value="${esc(p.empNo||"")}" placeholder="사번" aria-label="사번">
       <input id="wg-${p.id}" type="text" inputmode="numeric" class="num" data-f="wage" value="${won(wageOf(p,monthKey(new Date())))}" aria-label="시급(이번 달)" title="${Object.keys(p.wageFrom||{}).length?"달별 시급: "+Object.entries(p.wageFrom).sort().map(([k,v])=>k+"부터 "+won(v)).join(", "):""}">
       <select id="r-${p.id}" data-f="role" aria-label="구분"><option value="staff" ${p.role!=="owner"?"selected":""}>직원</option><option value="owner" ${p.role==="owner"?"selected":""}>사장</option></select>
-      <select id="dd-${p.id}" data-f="deduct" aria-label="공제" ${p.role==="owner"?"disabled":""}><option value="none" ${(p.deduct||"none")==="none"?"selected":""}>공제 없음</option><option value="3.3" ${p.deduct==="3.3"?"selected":""}>3.3% 원천징수</option><option value="4" ${p.deduct==="4"?"selected":""}>4대보험</option></select>
+      <select id="dd-${p.id}" data-f="deduct" aria-label="공제(이번 달)" ${p.role==="owner"?"disabled":""}>${Object.entries(DED_LABEL).map(([k,v])=>`<option value="${k}" ${deductOf(p,monthKey(new Date()))===k?"selected":""}>${v}</option>`).join("")}</select>
       <button class="btn ghost small" data-arch="${p.id}">그만둠</button>
     </div>`).join("")}
     <div class="bar" style="margin:12px 0 0"><input id="newName" type="text" placeholder="새 직원 이름"><button class="btn primary" id="addStaff">직원 추가</button>
@@ -1250,7 +1258,8 @@ function renderSettings(){
   main.querySelectorAll(".staffrow[data-id] [data-f]").forEach(el=>{
     el.addEventListener("change",()=>{
       const p=set.staff.find(x=>x.id===el.closest("[data-id]").dataset.id), f=el.dataset.f;
-      if(f==="wage" && Object.keys(p.wageFrom||{}).length){ p.wageFrom={...p.wageFrom,[monthKey(new Date())]:num(el.value)}; }
+      if(f==="deduct" && Object.keys(p.deductFrom||{}).length){ p.deductFrom={...p.deductFrom,[monthKey(new Date())]:el.value}; }
+      else if(f==="wage" && Object.keys(p.wageFrom||{}).length){ p.wageFrom={...p.wageFrom,[monthKey(new Date())]:num(el.value)}; }
       else p[f]= f==="wage"? num(el.value) : el.value;
       if(f==="role" && el.value==="owner") p.deduct="none";
       saveSettings(); render();
