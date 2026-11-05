@@ -191,6 +191,7 @@ table.pg tbody th{text-align:left;white-space:nowrap;background:var(--sunk)}
 table.pg td.on{background:var(--wine-soft);font-family:var(--mono);font-size:.8rem;line-height:1.35}
 table.pg td small,table.pg td.sum small{display:block;color:var(--muted);font-size:.7rem}
 table.pg td.sum{white-space:nowrap}
+.bud{font-size:.85rem;margin-left:6px} .bud.ok{color:var(--wine)} .bud.over{color:var(--sun)}
 .pgrid summary{cursor:pointer}
 .allow summary{cursor:pointer}
 .allow-row{display:grid;grid-template-columns:minmax(0,1.2fr) 120px minmax(0,2fr) auto;gap:6px;margin-bottom:6px}
@@ -604,18 +605,25 @@ function weekTotalsHTML(wk,set){
     <tfoot><tr><td>합계</td><td></td><td class="num">${hrs(sumH)}</td>${show?`<td class="num">${won(sumPay)}</td><td>${sumHol?`주휴 ${won(sumHol)}원`:"–"}</td>`:""}</tr></tfoot></table></div>${budget}`:'<p class="muted">이 주에는 아직 근무가 없어요. <b>+ 근무 추가</b>나 <b>지난주 그대로 가져오기</b>로 채워 보세요.</p>'}
   </div>`;
 }
-// 사람별 근무표: 행=직원, 열=요일 (보기 전용, 편집은 아래 요일 칸에서)
+// 사람별 근무표: 행=직원, 열=요일 (보기 전용, 편집은 아래 요일 칸에서) + 주 예산(wk.budget, wk.budgetBase: all=사장 포함 | staff=직원만)
 function personGridHTML(wk,start,set){
-  if(!wk||!wk.days.some(d=>d.shifts.length)) return "";
-  const mk=monthKey(start), ids=[...new Set(wk.days.flatMap(d=>d.shifts.map(sh=>sh.who)))];
+  const mk=monthKey(start), days=wk?wk.days:[], ids=[...new Set(days.flatMap(d=>d.shifts.map(sh=>sh.who)))];
   const people=set.staff.filter(p=>ids.includes(p.id));
-  let tot=0,totPay=0;
-  const rows=people.map(p=>{let h=0;const cells=[0,1,2,3,4,5,6].map(i=>{const c=wk.days[i].shifts.filter(sh=>sh.who===p.id).map(sh=>{const x=effCalc(sh,set);if(!x)return sh.chk==="absent"?'<span class="muted">결근</span>':"";h+=x.hours;return `${clock(x.s)}–${clock(x.e)}<small>${hrs(x.hours)}h</small>`;}).join("<br>");return `<td class="${c?"on":""}">${c}</td>`;}).join("");
-    const wg=wageOf(p,mk), owner=p.role==="owner", hol=!owner&&h>=15?Math.min(h,40)/40*8*wg:0, pay=Math.round(h*wg+hol); tot+=h; totPay+=pay;
+  let tot=0,staffPay=0,ownerPay=0;
+  const rows=people.map(p=>{let h=0;const cells=[0,1,2,3,4,5,6].map(i=>{const c=days[i].shifts.filter(sh=>sh.who===p.id).map(sh=>{const x=effCalc(sh,set);if(!x)return sh.chk==="absent"?'<span class="muted">결근</span>':"";h+=x.hours;return `${clock(x.s)}–${clock(x.e)}<small>${hrs(x.hours)}h</small>`;}).join("<br>");return `<td class="${c?"on":""}">${c}</td>`;}).join("");
+    const wg=wageOf(p,mk), owner=p.role==="owner", hol=!owner&&h>=15?Math.min(h,40)/40*8*wg:0, pay=Math.round(h*wg+hol); tot+=h; if(owner) ownerPay+=pay; else staffPay+=pay;
     return `<tr><th>${esc(p.name)}${owner?' <span class="chip owner">사장</span>':""}</th>${cells}<td class="sum"><b>${hrs(h)}h</b><small>${won(pay)}원${hol?" (주휴 포함)":""}</small></td></tr>`;}).join("");
   const hd=[0,1,2,3,4,5,6].map(i=>{const d=addDays(start,i),hol=holidayOf(d);return `<th class="${i===0||hol?"sun":""} ${i===6?"sat":""}">${d.getDate()} ${DOW[i]}</th>`;}).join("");
-  return `<details class="card pgrid" open style="margin-bottom:14px"><summary><h3 style="display:inline">사람별 근무표</h3> <span class="muted" style="font-size:.8rem">합계 ${hrs(tot)}h · ${won(totPay)}원 (사장 포함, 시급×시간+주휴)</span></summary>
-    <div class="scroll"><table class="pg"><thead><tr><th>이름</th>${hd}<th>주 합계</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+  const budget=Number(wk&&wk.budget||0), base=(wk&&wk.budgetBase)||"all", used=base==="staff"?staffPay:staffPay+ownerPay, diff=budget-used;
+  const status=budget?(diff>=0?`<b class="bud ok">예산 ${won(budget)} · ${won(diff)}원 남음</b>`:`<b class="bud over">예산 ${won(budget)} · ${won(-diff)}원 초과</b>`):`<span class="muted">주 예산 없음</span>`;
+  return `<details class="card pgrid" open style="margin-bottom:14px"><summary><h3 style="display:inline">사람별 근무표</h3> ${status}</summary>
+    <div class="bar" style="margin:10px 0">
+      <label>이번 주 예산 <input id="wkBudget" class="num" inputmode="numeric" style="width:120px" value="${budget?won(budget):""}" placeholder="예: 750,000"> 원</label>
+      <select id="wkBase" aria-label="예산 기준"><option value="all" ${base==="all"?"selected":""}>사장 포함</option><option value="staff" ${base==="staff"?"selected":""}>직원만</option></select>
+      <span class="muted" style="font-size:.85rem">직원 ${won(staffPay)}원 + 사장 ${won(ownerPay)}원 = <b>${won(staffPay+ownerPay)}원</b> · ${hrs(tot)}h${budget?` · 예산 대비 ${Math.round(used/budget*100)}%`:""}</span>
+    </div>
+    ${people.length?`<div class="scroll"><table class="pg"><thead><tr><th>이름</th>${hd}<th>주 합계</th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p class="muted">아직 이 주에 근무가 없어요.</p>`}
+    <p class="muted" style="font-size:.75rem;margin:6px 0 0">금액 = 시간 × 그 달 시급 + 주휴(주 15시간 이상 직원). 예산은 주마다 따로 저장돼요. 수정은 아래 요일 칸에서 하면 바로 바뀌어요.</p></details>`;
 }
 function renderSchedule(){
   if(state.scheduleNotice){renderScheduleNotice();return;}
@@ -735,6 +743,10 @@ function renderSchedule(){
     if(el.tagName==="SELECT") el.addEventListener("change",render);
     if(el.tagName==="INPUT") el.addEventListener("keydown",e=>{if(e.key==="Enter") el.blur();});
   });
+  { const bi=main.querySelector("#wkBudget"), bs=main.querySelector("#wkBase");
+    bi.addEventListener("keydown",e=>{if(e.key==="Enter") bi.blur();});
+    bi.addEventListener("change",()=>{const w=ensureWeek(state.weekKey); w.budget=Number(bi.value.replace(/[^\d]/g,""))||0; saveWeek(state.weekKey); render();});
+    bs.addEventListener("change",()=>{const w=ensureWeek(state.weekKey); w.budgetBase=bs.value; saveWeek(state.weekKey); render();}); }
   { const m=main.querySelector("#weekMemo"); const fit=()=>{m.style.height="auto";m.style.height=(m.scrollHeight+2)+"px";}; fit();
     m.addEventListener("input",()=>{fit(); const w=ensureWeek(state.weekKey); w.memo=m.value; saveWeek(state.weekKey);}); }
   main.querySelectorAll("[data-note]").forEach(el=>{const fit=()=>{el.style.height="auto";el.style.height=(el.scrollHeight+2)+"px";};fit();let width=el.clientWidth;const observer=new ResizeObserver(()=>{if(el.clientWidth!==width){width=el.clientWidth;fit();}});observer.observe(el);noteObservers.push(observer);el.addEventListener("input",()=>{fit();const w=ensureWeek(state.weekKey); w.days[+el.dataset.note].note=el.value; saveWeek(state.weekKey);});});
