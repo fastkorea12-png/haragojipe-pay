@@ -14,7 +14,7 @@ const reply=(b,status=200)=>new Response(JSON.stringify(b),{status,headers:{'con
 const realFetch=window.fetch;window.fetch=async(url,options={})=>{
  const path=new URL(url,location.href).pathname;
  if(!path.startsWith('/api/'))return realFetch(url,options);
- if(path==='/api/admin/login'){const b=JSON.parse(options.body);return b.password==='demo'?reply({token:'qa-token',expiresAt:new Date(Date.now()+14400000).toISOString()}):reply({error:'비밀번호를 확인해 주세요'},401);}
+ if(path==='/api/admin/login'){const b=JSON.parse(options.body);return b.password==='demo'?reply({token:'qa-token',expiresAt:new Date(Date.now()+14400000).toISOString(),role:'owner'}):reply({error:'비밀번호를 확인해 주세요'},401);}
  if(options.headers?.Authorization!=='Bearer qa-token')return reply({error:'로그인 필요'},401);
  const doc=p=>({path:p,data:structuredClone(store[p]),version:versions[p],updatedAt:Date.now()});
  if(path==='/api/pay/state')return reply({docs:Object.keys(store).map(doc)});
